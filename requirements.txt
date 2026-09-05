@@ -1,0 +1,4 @@
+PySide6>=6.8,<7
+# Excel export. Pure Python, no native build, ~250 KB in the bundle.
+openpyxl>=3.1,<4
+pytest>=8,<9

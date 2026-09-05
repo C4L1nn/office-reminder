@@ -1,0 +1,15 @@
+[project]
+name = "office-reminder"
+version = "1.0.0"
+description = "Local Windows office obligation and reminder application"
+requires-python = ">=3.11"
+dependencies = [
+  "PySide6>=6.8,<7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

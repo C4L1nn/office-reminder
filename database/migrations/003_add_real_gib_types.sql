@@ -1,0 +1,36 @@
+-- Faz 3 düzeltme: Gerçek GİB 2026 takvimindeki vergi türlerine göre yeni obligation type'lar.
+-- Mevcut 7+2 tip korunur, e-Defter 4 alt tipe ayrılır, diğer GİB vergi türleri eklenir.
+-- INSERT OR IGNORE ile idempotent.
+
+INSERT OR IGNORE INTO obligation_types (code, name, category, source_kind, schedule_kind, description) VALUES
+('GIB_EDEFTER_AYLIK_GELIR', 'e-Defter - Aylık Yükleme (Gelir Vergisi Mükellefleri)', 'E_LEDGER', 'GIB', 'SEEDED', 'GİB resmî takviminden: Aylık yükleme tercihinde bulunmuş gelir vergisi mükellefleri.'),
+('GIB_EDEFTER_AYLIK_DIGER', 'e-Defter - Aylık Yükleme (Diğer Mükellefler)', 'E_LEDGER', 'GIB', 'SEEDED', 'GİB resmî takviminden: Aylık yükleme tercihinde bulunmuş diğer mükellefler.'),
+('GIB_EDEFTER_GECICI_GELIR', 'e-Defter - Geçici Vergi Dönemleri (Gelir Vergisi Mükellefleri)', 'E_LEDGER', 'GIB', 'SEEDED', 'GİB resmî takviminden: Geçici vergi dönemleri bazında yükleme tercihinde bulunmuş gelir vergisi mükellefleri.'),
+('GIB_EDEFTER_GECICI_DIGER', 'e-Defter - Geçici Vergi Dönemleri (Diğer Mükellefler)', 'E_LEDGER', 'GIB', 'SEEDED', 'GİB resmî takviminden: Geçici vergi dönemleri bazında yükleme tercihinde bulunmuş diğer mükellefler.'),
+('GIB_OZEL_TUKETIM', 'Özel Tüketim Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_EGLENCE', 'Eğlence Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_HARCLAR', 'Harçlar Kanunu', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_TURIZM', 'Turizm Payı', 'TAX', 'GIB', 'SEEDED', 'Türkiye Turizm Tanıtım ve Geliştirme Ajansı Hakkında Kanun.'),
+('GIB_GELIR_VERGISI', 'Gelir Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_VERASET', 'Veraset ve İntikal Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_NOTER', 'Noter Harç ve Değerli Kağıt Bedelleri', 'TAX', 'GIB', 'SEEDED', 'Noterlerce Tahsil Edilen Vergi Resim ve Harçlar ile Değerli Kağıt Bedelleri.'),
+('GIB_BSMV', 'Banka ve Sigorta Muameleleri Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_OIV', 'Özel İletişim Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_KKDF', 'Kaynak Kullanımını Destekleme Fonu', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_SANS', 'Şans Oyunları Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_ELEKTRIK', 'Elektrik ve Havagazı Tüketim Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_ILAN', 'İlan ve Reklam Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_YANGIN', 'Yangın Sigortası Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_KONAKLAMA', 'Konaklama Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_7440', '7440 Sayılı Kanun', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_HABERLESME', 'Haberleşme Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_DIJITAL', 'Dijital Hizmet Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_CEVRE_VUK', 'Çevre Kanunu - VUK Bildirim', 'TAX', 'GIB', 'SEEDED', 'Çevre Kanunu, Vergi Usul Kanunu.'),
+('GIB_GELIR_GECICI', 'Gelir Geçici Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_DEGERLI_KONUT', 'Değerli Konut Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_YEREL_ASGARI', 'Yerel Asgari Tamamlayıcı Kurumlar Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_KURESEL_ASGARI', 'Küresel Asgari Tamamlayıcı Kurumlar Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_CEVRE_TEMIZLIK', 'Çevre Temizlik Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_EMLAK', 'Emlak Vergisi', 'TAX', 'GIB', 'SEEDED', 'GİB resmî takviminden gelir.'),
+('GIB_VUK_BILDIRIM', 'VUK Genel Bildirimler', 'SYSTEM', 'GIB', 'SEEDED', 'Vergi Usul Kanunu kapsamındaki bildirim yükümlülükleri.'),
+('GIB_VUK_GENEL', 'Vergi Usul Kanunu - Genel', 'SYSTEM', 'GIB', 'SEEDED', 'Vergi Usul Kanunu diğer yükümlülükler.');
