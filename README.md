@@ -62,13 +62,26 @@ Testler ağa çıkmaz. SGK production parser'ı, `tests/fixtures/sgk/` altındak
 
 ## Paketleme
 
+**Derleme mutlaka temiz bir sanal ortamda yapılmalıdır.** PyInstaller, ortamda
+ne bulursa import zincirlerinden içeri çeker; sistem Python'unda derlenen
+1.0.0 paketi bu yüzden `numpy` + OpenBLAS, `PIL`'in AVIF kodeki ve pywin32'nin
+MFC katmanını taşıyordu — hiçbiri bu uygulamada import edilmiyor.
+
 ```bash
-python -m PyInstaller --noconfirm --clean office_reminder.spec
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt pyinstaller
+.venv\Scripts\pyinstaller --noconfirm --clean office_reminder.spec
 ```
 
 Çıktı: `dist/OfficeReminder/OfficeReminder.exe` (onedir, windowed).
 Bundle yalnızca salt-okunur kaynakları içerir: migration'lar, GİB seed takvimi
 ve ikon. Çalışma zamanı verisi paketlenmez.
+
+Temiz ortamda ölçülen boyutlar: klasör **109 MB**, ZIP **42,9 MB**, 179 dosya,
+`OfficeReminder.exe` **3,2 MB**. Kod değişikliğinde paketin yalnızca iki
+dosyası değişir (`OfficeReminder.exe` ve `_internal/base_library.zip`,
+sıkıştırılmış toplam ~3 MB); geri kalan 177 dosya sürümler arasında bit bit
+aynı kalır.
 
 Build sonrası doğrulama:
 

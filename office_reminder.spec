@@ -59,12 +59,52 @@ a = Analysis(
         "PySide6.QtBluetooth",
         "PySide6.QtSql",
         "PySide6.QtTest",
+        # Saf QtWidgets uygulaması: QML çalışma zamanı hiç kullanılmıyor.
+        "PySide6.QtQml",
+        "PySide6.QtQuick",
+        "PySide6.QtQuickWidgets",
+        "PySide6.QtQuickControls2",
         "tkinter",
         "pytest",
         "unittest",
+        # Aşağıdakileri uygulama hiçbir yerde import etmiyor. Temiz bir sanal
+        # ortamda zaten yoklar; liste, geliştirici makinesinin genel Python
+        # ortamında derleme yapıldığında paketin 60 MB fazlalık taşımasını
+        # önler. 1.0.0 paketi tam olarak böyle şişmişti: numpy + OpenBLAS,
+        # PIL'in AVIF kodeki ve pywin32'nin MFC katmanı boşuna geliyordu.
+        "numpy",
+        "scipy",
+        "pandas",
+        "matplotlib",
+        "PIL",
+        "cv2",
+        "torch",
+        "sklearn",
+        "skimage",
+        "customtkinter",
+        "win32com",
+        "Pythonwin",
+        "IPython",
     ],
     noarchive=False,
 )
+
+# Qt'nin ekran klavyesi eklentisi tek başına 13 MB'lık bir QML çalışma zamanı
+# getiriyor: Qt6VirtualKeyboard -> Qt6Quick -> Qt6Qml + QmlMeta/QmlModels/
+# QmlWorkerScript. `excludes` bunu durduramaz, çünkü zincir Python importu
+# değil ikili bağımlılık; PE import tablosundan doğrulandı. Uygulama saf
+# QtWidgets ve gerçek klavyesi olan masaüstü makinelerinde çalışıyor; Qt'nin
+# sanal klavyesi yüklenmediğinde Windows kendi dokunmatik klavyesini sunar.
+_DROP_BINARIES = {
+    "qt6virtualkeyboard.dll",
+    "qt6quick.dll",
+    "qt6qml.dll",
+    "qt6qmlmeta.dll",
+    "qt6qmlmodels.dll",
+    "qt6qmlworkerscript.dll",
+    "qtvirtualkeyboardplugin.dll",
+}
+a.binaries = [b for b in a.binaries if Path(b[0]).name.lower() not in _DROP_BINARIES]
 
 pyz = PYZ(a.pure, a.zipped_data)
 

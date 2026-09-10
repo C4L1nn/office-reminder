@@ -219,20 +219,24 @@ kod okuyarak görülmezler.
 
 | # | Kontrol | Nasıl | Sonuç |
 |---|---|---|---|
+| 10.0 | **Temiz sanal ortamda derleniyor** | `.venv` yalnızca `requirements.txt` + pyinstaller içerir | ✅ 15 paket |
 | 10.1 | Temiz build | `rm -rf build dist && PyInstaller --clean` | ✅ |
 | 10.2 | Bundle içeriği | migrations + seed + ikon | ✅ |
 | 10.3 | Runtime verisi paketlenmiyor | `find dist -name "*.db"` | ✅ boş |
 | 10.4 | Paketli selftest | `OfficeReminder.exe --selftest` | ✅ EXIT=0 |
-| 10.5 | Paketli GUI açılıyor | `--background`, log "Startup complete" | ✅ |
-| 10.6 | Boyut | onedir | 121 MB |
+| 10.5 | Paketli GUI açılıyor | `OFFICE_REMINDER_DATA_DIR` ile yalıtılmış örnek, log "Startup complete" | ✅ 12 migration + 476 GİB + 24 SGK |
+| 10.6 | Boyut | onedir klasör / ZIP / dosya | ✅ 109 MB / 42,9 MB / 179 |
+| 10.7 | Kullanılmayan Qt zinciri paketlenmiyor | `Qt6VirtualKeyboard` -> `Qt6Quick`/`Qt6Qml` spec'te ikili süzgeçle düşürülür | ✅ 13 MB |
+| 10.8 | `opengl32sw.dll` bilinçli olarak duruyor | Uygulama GL istemiyor, ama RDP oturumunda yedeksiz kalmamak için tutuluyor | ⚠ karar: kalsın |
 
 ---
 
 ## Yayın adımları
 
-1. `pytest -q` — tamamı yeşil olmalı.
+1. `pytest -q` — tamamı yeşil olmalı, **temiz sanal ortamda** koşturun.
 2. `python tools/make_icon.py` — ikon değiştiyse.
-3. `rm -rf build dist && python -m PyInstaller --noconfirm --clean office_reminder.spec`
+3. `rm -rf build dist && .venv/Scripts/pyinstaller --noconfirm --clean office_reminder.spec`
+   Sistem Python'uyla derlemeyin: paket 40 MB şişer (bkz. 10.0).
 4. `dist\OfficeReminder\OfficeReminder.exe --selftest` → `SELFTEST PASSED`
 5. Temiz bir kullanıcı profilinde `--background` ile başlat, tepsi menüsünü ve
    "Bugünkü İşler"i dene.

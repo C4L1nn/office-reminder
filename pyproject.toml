@@ -5,10 +5,18 @@ description = "Local Windows office obligation and reminder application"
 requires-python = ">=3.11"
 dependencies = [
   "PySide6>=6.8,<7",
+  # services/export_service.py: .xlsx dışa aktarma. Uygulama bunsuz açılır ama
+  # Excel'e kaydetme çalışmaz ve app/selftest.py bunu bir kontrol olarak sayar.
+  "openpyxl>=3.1,<4",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<9"]
+build = ["pyinstaller>=6.10,<7"]
+# Yumuşak bağımlılık: kuruluysa native Windows toast kullanılır, kurulu
+# değilse bildirim Qt tepsi balonu olarak gider ve uygulama içi kutu zaten
+# garantilidir (services/notification_adapter.py).
+toasts = ["windows-toasts"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
