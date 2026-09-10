@@ -216,3 +216,44 @@ def short_company_name(name: str | None) -> str:
             trimmed = trimmed[: len(trimmed) - len(suffix)].rstrip(" ,.-")
             break
     return trimmed or name
+
+
+def mini_counter_remaining_short(days: int) -> str:
+    """Compact remaining-days wording for the always-on-top mini counter.
+
+    The full `remaining_label()` ("3 gün kaldı") does not fit a 260px card,
+    so this is its dense sibling ("3g kaldı"). Same meaning, same language.
+    """
+    if days < 0:
+        return f"{-days}g gecikti"
+    if days == 0:
+        return "Bugün"
+    if days == 1:
+        return "Yarın"
+    return f"{days}g kaldı"
+
+
+def mini_counter_text(title: str | None, days: int | None, extra: int) -> tuple[str, str]:
+    """Title + subtitle lines for the mini counter.
+
+    Returns (heading, subline) so the widget never builds sentences itself:
+    empty work is "Bugün iş yok", otherwise "KDV" / "3g kaldı · +2 iş daha".
+    """
+    if title is None or days is None:
+        return ("Bugün iş yok", "Tertemiz gün")
+    heading = " ".join(title.split())
+    parts = [mini_counter_remaining_short(days)]
+    if extra > 0:
+        parts.append(f"+{extra} iş daha")
+    return (heading, " · ".join(parts))
+
+
+def mini_counter_tone(days: int | None) -> str:
+    """Stylesheet tone for the mini counter's left strip and dot."""
+    if days is None:
+        return "success"
+    if days < 0:
+        return "danger"
+    if days == 0:
+        return "warning"
+    return "accent"

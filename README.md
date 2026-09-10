@@ -9,6 +9,11 @@ sigorta, kasko, kira, sözleşme gibi şirkete özgü tarihler kullanıcı taraf
 eklenir. Uygulama sistem tepsisinde yaşar, Windows bildirimi gönderir ve
 verisini günlük yedekler.
 
+İsteğe bağlı **mini sayaç**, en acil işi diğer pencerelerin üstünde duran
+küçük bir kartta gösterir: tıklayınca ana pencere açılır, sürükleyerek
+taşınır. Varsayılan olarak kapalıdır; Ayarlar ekranından veya tepsi
+menüsünden açılır.
+
 ## Hızlı başlangıç
 
 ```bash

@@ -67,6 +67,20 @@ class DueItem:
         return " · ".join(parts)
 
 
+@dataclass(slots=True, frozen=True)
+class MiniCounterSnapshot:
+    """One row for the always-on-top mini counter.
+
+    `item` is the single most urgent row (oldest overdue, else nearest due),
+    `extra` counts everything else shown as "+N iş daha" — counted here so the
+    widget never has to recount from the item alone. Anything else the card
+    might want later belongs in `get_dashboard_counts`, which already has it.
+    """
+
+    item: DueItem | None
+    extra: int
+
+
 def _parse_tags(raw) -> list[str] | None:
     if not raw:
         return None
@@ -587,6 +601,25 @@ class ReminderService:
             "overdue_items": overdue,
             "this_month_items": this_month,
         }
+
+    def get_mini_counter_snapshot(self, today: date | None = None) -> MiniCounterSnapshot:
+        """Pick the single row the mini counter shows.
+
+        Priority is oldest overdue first, otherwise nearest due — the same
+        `(due_date, title)` order every list in the app uses, so the card can
+        never disagree with the dashboard about what is "most urgent".
+        """
+        today = today or date.today()
+        overdue = self.list_overdue(today=today)
+        upcoming = self.list_due(horizon_days=30, today=today, include_overdue=False)
+        if overdue:
+            # list_overdue is already sorted oldest-first.
+            return MiniCounterSnapshot(
+                item=overdue[0], extra=len(overdue) - 1 + len(upcoming)
+            )
+        if upcoming:
+            return MiniCounterSnapshot(item=upcoming[0], extra=len(upcoming) - 1)
+        return MiniCounterSnapshot(item=None, extra=0)
 
     def search_manual(self, **kwargs):
         return self.reminders.list_filtered(**kwargs)

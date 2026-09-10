@@ -29,12 +29,13 @@ from services.notification_service import NotificationService
 from services.official_calendar_service import OfficialCalendarSeedService
 from services.official_update_service import OfficialUpdateService
 from services.reminder_service import ReminderService
-from services.settings_service import SettingsService
+from services.settings_service import MINI_COUNTER_ENABLED, SettingsService
 from services.sgk_calendar_service import SgkCalendarService
 from services.startup_service import StartupService
 from services.sync_worker import run_in_background
 from ui import icons
 from ui.main_window import MainWindow
+from ui.mini_counter import MiniCounter, tooltip_for
 from ui.theme import apply_theme, tokens_for
 
 logger = logging.getLogger("office_reminder.app")
@@ -124,6 +125,20 @@ class OfficeReminderApplication:
         # leaves something visible in the taskbar.
         self.main_window.unread_changed.connect(self._update_tray_badge)
         self.main_window.refresh_unread()
+
+        self.mini_counter = MiniCounter()
+        self.mini_counter.clicked.connect(self._open_from_mini_counter)
+        self.mini_counter.hide_requested.connect(self._hide_mini_counter)
+        # Without this the card only caught up on the notification tick, so a
+        # record completed in the window stayed on the card for 15 minutes.
+        self.main_window.data_changed.connect(self.refresh_mini_counter)
+        try:
+            self.main_window.settings_page.settings_changed.connect(
+                self._sync_mini_counter_visibility
+            )
+        except Exception:
+            logger.debug("Mini sayaç ayar sinyali bağlanamadı", exc_info=True)
+        self._sync_mini_counter_visibility()
 
         self._start_timers()
         logger.info("Startup complete")
@@ -236,6 +251,17 @@ class OfficeReminderApplication:
         sync_action.triggered.connect(self.run_sync)
         menu.addAction(sync_action)
 
+        self._mini_counter_action = QAction("Mini Sayaç", menu)
+        self._mini_counter_action.setCheckable(True)
+        try:
+            self._mini_counter_action.setChecked(
+                self.settings_service.get_bool(MINI_COUNTER_ENABLED)
+            )
+        except Exception:
+            logger.debug("Mini sayaç ayarı okunamadı", exc_info=True)
+        self._mini_counter_action.triggered.connect(self._toggle_mini_counter_from_tray)
+        menu.addAction(self._mini_counter_action)
+
         menu.addSeparator()
 
         quit_action = QAction("Çıkış", menu)
@@ -307,6 +333,91 @@ class OfficeReminderApplication:
                 logger.info("Delivered %s notification(s)", delivered)
         except Exception:
             logger.error("Notification check failed", exc_info=True)
+        self.refresh_mini_counter()
+
+    # ------------------------------------------------------------ mini counter
+    def _mini_counter_enabled(self) -> bool:
+        try:
+            return self.settings_service.get_bool(MINI_COUNTER_ENABLED)
+        except Exception:
+            logger.debug("Mini sayaç ayarı okunamadı", exc_info=True)
+            return False
+
+    def _sync_mini_counter_visibility(self) -> None:
+        """Show or hide the card to match the stored setting."""
+        try:
+            enabled = self._mini_counter_enabled()
+            action = getattr(self, "_mini_counter_action", None)
+            if action is not None:
+                action.setChecked(enabled)
+            if enabled:
+                self.refresh_mini_counter()
+                self.mini_counter.show()
+            else:
+                self.mini_counter.hide()
+        except Exception:
+            logger.debug("Mini sayaç görünürlüğü eşitlenemedi", exc_info=True)
+
+    def refresh_mini_counter(self) -> None:
+        """Re-render the card; never lets a stale error blank the card."""
+        counter = getattr(self, "mini_counter", None)
+        if counter is None or not self._mini_counter_enabled():
+            return
+        try:
+            snapshot = self.reminder_service.get_mini_counter_snapshot()
+        except Exception:
+            logger.debug("Mini sayaç verisi okunamadı", exc_info=True)
+            return
+        try:
+            item = snapshot.item
+            if item is None:
+                counter.refresh(None, None, 0)
+                return
+            days = item.days_remaining
+            title = item.title
+            folded = f" {title.casefold()} "
+            if item.plate and item.plate.casefold() not in folded:
+                # The plate disambiguates vehicles; the widget elides if narrow.
+                title = f"{title} · {item.plate}"
+            counter.refresh(
+                title,
+                days,
+                snapshot.extra,
+                tooltip_for(item.company_name, item.title, item.due_date),
+            )
+        except Exception:
+            logger.debug("Mini sayaç çizilemedi", exc_info=True)
+
+    def _toggle_mini_counter_from_tray(self) -> None:
+        try:
+            checked = self._mini_counter_action.isChecked()
+            self.settings_service.set_bool(MINI_COUNTER_ENABLED, checked)
+        except Exception:
+            logger.debug("Mini sayaç ayarı yazılamadı", exc_info=True)
+            return
+        try:
+            self.main_window.settings_page.refresh()
+        except Exception:
+            logger.debug("Ayarlar ekranı tazelenemedi", exc_info=True)
+        self._sync_mini_counter_visibility()
+
+    def _open_from_mini_counter(self) -> None:
+        self.show_window()
+        try:
+            self.main_window.show_page("reminders")
+        except Exception:
+            logger.debug("Mini sayaçtan pencere açılamadı", exc_info=True)
+
+    def _hide_mini_counter(self) -> None:
+        try:
+            self.settings_service.set_bool(MINI_COUNTER_ENABLED, False)
+        except Exception:
+            logger.debug("Mini sayaç ayarı yazılamadı", exc_info=True)
+        try:
+            self.main_window.settings_page.refresh()
+        except Exception:
+            logger.debug("Ayarlar ekranı tazelenemedi", exc_info=True)
+        self._sync_mini_counter_visibility()
 
     def run_sync(self) -> None:
         """Check official sources off the Qt thread; never block the UI."""
@@ -333,6 +444,7 @@ class OfficeReminderApplication:
             except Exception:
                 logger.warning("Announcing revisions failed", exc_info=True)
             self.main_window.sync_finished()
+            self.refresh_mini_counter()
 
         def failed(message: str) -> None:
             self._sync_running = False
@@ -365,10 +477,18 @@ class OfficeReminderApplication:
 
     def _save_window_state(self) -> None:
         self.main_window.save_state()
+        try:
+            self.mini_counter.save_position()
+        except Exception:
+            logger.debug("Mini sayaç konumu kaydedilemedi", exc_info=True)
 
     def _hide_tray(self) -> None:
         # Without this the tray icon can linger as a ghost until hovered.
         self.tray_icon.hide()
+        try:
+            self.mini_counter.hide()
+        except Exception:
+            logger.debug("Mini sayaç gizlenemedi", exc_info=True)
 
     def run(self) -> int:
         if self.background:

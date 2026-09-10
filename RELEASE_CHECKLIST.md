@@ -11,7 +11,7 @@ Son çalıştırma: **2026-09-03** · Ortam: Windows 11, Python 3.11.9, PySide6 
 
 | # | Kontrol | Nasıl | Sonuç |
 |---|---|---|---|
-| 1.1 | Tüm testler geçiyor | `pytest -q` | ✅ **343 passed** |
+| 1.1 | Tüm testler geçiyor | `pytest -q` | ✅ **356 passed** |
 | 1.2 | Testler ağa çıkmıyor | SGK/GİB testleri snapshot + enjekte edilmiş fetcher kullanır | ✅ |
 | 1.3 | Derleme hatası yok | `python -m compileall app database services ui tools main.py` | ✅ |
 | 1.4 | UI'da SQL yok | `grep -riE "execute\(|sqlite3|SELECT " ui/` | ✅ eşleşme yok |
@@ -110,6 +110,9 @@ Son çalıştırma: **2026-09-03** · Ortam: Windows 11, Python 3.11.9, PySide6 
 | 7.6 | Windows ile başlat | HKCU\...\Run, yönetici izni yok | ✅ |
 | 7.7 | Runtime yolu | `%LOCALAPPDATA%\OfficeReminder\` | ✅ exe yanına yazmıyor |
 | 7.8 | Çevrimdışı açılış | Ağ yokken dashboard ve bildirimler çalışır | ✅ test I |
+| 7.9 | Mini sayaç | Varsayılan kapalı; Ayarlar ve tepsi menüsü aynı ayarı yazar | ✅ `tests/test_mini_counter.py` |
+| 7.10 | Mini sayaç tazeleme | Kayıt değişince `data_changed` ile anında; zamanlayıcı beklenmez | ✅ `tests/test_mini_counter.py` |
+| 7.11 | Mini sayaç konumu | `QSettings` (pencere kroması); ekran dışıysa sağ alta döner | ✅ |
 
 ## 8. Yedekleme
 

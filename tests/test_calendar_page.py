@@ -92,6 +92,64 @@ def test_a_long_company_name_is_elided_not_chopped(page) -> None:
     assert chip.full_text(), "çip metni boş"
 
 
+def test_day_detail_uses_up_to_two_lines(page) -> None:
+    """A long title gets its second line instead of a mid-word cut.
+
+    One line truncates names like "Gelir ve Kurumlar Vergisi" beyond
+    recognition; the full text stays in the tooltip either way.
+    """
+    from ui.widgets import TwoLineElided
+
+    long_title = "Elektronik Defter Beratları Dönem Yüklemesi ve Bildirimi"
+    page.reminder_service.create_manual(
+        title=long_title, due_date=date(2026, 9, 15), category="OTHER"
+    )
+    page.refresh()
+    page._show_day(date(2026, 9, 15))
+
+    titles = page.day_card.findChildren(TwoLineElided)
+    target = next((t for t in titles if t.full_text() == long_title), None)
+    assert target is not None, "uzun başlık gün detayında yok"
+    assert long_title in target.toolTip()
+
+    metrics = target.fontMetrics()
+    narrow = target._display_lines(metrics, 100)
+    assert len(narrow) == 2, narrow
+    assert narrow[1].endswith("…"), narrow
+    wide = target._display_lines(metrics, 2000)
+    assert wide == [long_title]
+
+
+def test_crowded_day_rows_never_overlap(page, qt_app) -> None:
+    """Six records on one day: every row keeps its own band.
+
+    Rows share one height and the list scrolls inside its card, so a busy
+    day cannot paint rows over each other or push the grid around.
+    """
+    from PySide6.QtWidgets import QWidget
+
+    for index in range(6):
+        page.reminder_service.create_manual(
+            title=f"Uzun Başlıklı Kayıt Numara {index} Ek Metin",
+            due_date=date(2026, 9, 15),
+            category="OTHER",
+        )
+    page.refresh()
+    page.show()
+    qt_app.processEvents()
+    page._show_day(date(2026, 9, 15))
+    qt_app.processEvents()
+
+    rows = page.day_card.findChildren(QWidget, "DayRow")
+    assert len(rows) >= 6, f"beklenen 6 satır, bulunan {len(rows)}"
+    heights = {row.height() for row in rows}
+    assert len(heights) == 1, f"satır boyları dağıldı: {heights}"
+    boxes = [row.geometry() for row in rows]
+    for first in range(len(boxes)):
+        for second in range(first + 1, len(boxes)):
+            assert not boxes[first].intersects(boxes[second]), (first, second)
+
+
 
 
 
@@ -145,3 +203,16 @@ def test_public_holidays_are_marked(page) -> None:
     new_year = next(c for c in page.grid.cells if c.day == date(2026, 1, 1))
     assert new_year.property("holiday") is True
     assert "tatil" in new_year.toolTip().lower()
+
+
+def test_day_detail_titles_use_the_muted_tone(page, qt_app) -> None:
+    """Two-line titles still follow the theme, in both palettes."""
+    from ui.theme import DARK, LIGHT, apply_theme
+    from ui.widgets import TwoLineElided
+
+    for palette_tokens in (DARK, LIGHT):
+        apply_theme(qt_app, palette_tokens)
+        page._show_day(date(2026, 9, 15))
+        titles = page.day_card.findChildren(TwoLineElided)
+        assert titles
+        assert all(t.objectName() == "Muted" for t in titles)

@@ -24,6 +24,7 @@ MINIMIZE_TO_TRAY = "window.minimize_to_tray"
 BACKUP_ENABLED = "backup.enabled"
 BACKUP_RETENTION_DAYS = "backup.retention_days"
 APPEARANCE_THEME = "appearance.theme"
+MINI_COUNTER_ENABLED = "mini_counter.enabled"
 
 #: "system" follows the Windows colour mode; the other two override it.
 THEME_CHOICES = ("system", "light", "dark")
@@ -38,6 +39,7 @@ _DEFAULTS: dict[str, str] = {
     BACKUP_ENABLED: "true",
     BACKUP_RETENTION_DAYS: "30",
     APPEARANCE_THEME: "system",
+    MINI_COUNTER_ENABLED: "false",
 }
 
 _TRUE = {"1", "true", "yes", "on"}

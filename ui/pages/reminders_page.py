@@ -4,7 +4,7 @@ import logging
 from datetime import date
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -75,6 +75,11 @@ STATUS_VIEWS = (
 
 class RemindersPage(Page):
     """Every obligation — official and manual — in one filterable list."""
+
+    #: Emitted after this page changes a record, so the rest of the shell —
+    #: the dashboard, the calendar, the always-on-top mini counter — stops
+    #: showing an obligation the user has just completed or deleted.
+    data_changed = Signal()
 
     def __init__(
         self,
@@ -212,6 +217,16 @@ class RemindersPage(Page):
             if index >= 0:
                 self.company_combo.setCurrentIndex(index)
         self.company_combo.blockSignals(False)
+
+    def _after_change(self) -> None:
+        """The single exit from every mutation on this page.
+
+        Redraws this list, then announces the change. Plain `refresh()` stays
+        for the cases that only re-read (filters, reveal, a file attached),
+        which nothing outside the page needs to hear about.
+        """
+        self.refresh()
+        self.data_changed.emit()
 
     def refresh(self) -> None:
         self._load_companies()
@@ -538,7 +553,7 @@ class RemindersPage(Page):
                 logger.warning("Toplu tamamlama başarısız: %s", item.title, exc_info=True)
                 failures.append(f"{item.title}: {exc}")
 
-        self.refresh()
+        self._after_change()
         if failures:
             QMessageBox.warning(
                 self,
@@ -600,7 +615,7 @@ class RemindersPage(Page):
         except Exception as exc:
             QMessageBox.warning(self, "Hatırlatma kaydedilemedi", str(exc))
             return
-        self.refresh()
+        self._after_change()
 
     def _quick_add(self) -> None:
         dialog = QuickAddDialog(self.company_service, self)
@@ -611,7 +626,7 @@ class RemindersPage(Page):
         except Exception as exc:
             QMessageBox.warning(self, "Hatırlatma kaydedilemedi", str(exc))
             return
-        self.refresh()
+        self._after_change()
 
     def edit_selected(self) -> None:
         item = self._selected()
@@ -639,7 +654,7 @@ class RemindersPage(Page):
         except Exception as exc:
             QMessageBox.warning(self, "Güncellenemedi", str(exc))
             return
-        self.refresh()
+        self._after_change()
 
     def delete_selected(self) -> None:
         item = self._selected()
@@ -656,7 +671,7 @@ class RemindersPage(Page):
         except Exception as exc:
             QMessageBox.warning(self, "Silinemedi", str(exc))
             return
-        self.refresh()
+        self._after_change()
 
     def toggle_complete(self) -> None:
         item = self._selected()
@@ -672,7 +687,7 @@ class RemindersPage(Page):
         except Exception as exc:
             QMessageBox.warning(self, "İşlem tamamlanamadı", str(exc))
             return
-        self.refresh()
+        self._after_change()
 
     def _context_menu(self, position) -> None:
         item = self._selected()

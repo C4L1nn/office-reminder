@@ -503,10 +503,95 @@ class ElidedLabel(QLabel):
         from PySide6.QtGui import QPainter
 
         painter = QPainter(self)
+        # Honour the stylesheet colour (DayChip, Muted, ...); without this the
+        # text is always pure black, which vanishes on a dark surface.
+        painter.setPen(self.palette().color(self.foregroundRole()))
         metrics = painter.fontMetrics()
         rect = self.contentsRect()
         elided = metrics.elidedText(self._full, Qt.TextElideMode.ElideRight, rect.width())
         painter.drawText(rect, int(self.alignment()), elided)
+        painter.end()
+
+
+class TwoLineElided(QLabel):
+    """A title that may use two lines, then ends in an ellipsis.
+
+    The day column is too narrow for long obligation names on one line, but a
+    free wrap has no cap — so this fills the first line greedily at word
+    boundaries and elides everything else at the end of the second line. The
+    full text stays with the caller (tooltip). Paints with the palette colour
+    like ElidedLabel, so `Muted` keeps working in both themes.
+    """
+
+    def __init__(self, text: str = "", parent: QWidget | None = None) -> None:
+        super().__init__(text, parent)
+        self._full = " ".join(text.split())
+        self.setMinimumWidth(24)
+
+    def setText(self, text: str) -> None:  # noqa: N802
+        self._full = " ".join(text.split())
+        super().setText(text)
+        self.update()
+
+    def full_text(self) -> str:
+        return self._full
+
+    def sizeHint(self) -> QSize:  # noqa: N802
+        # Always room for two lines: every row stays the same height whether
+        # its title needs one line or two, so rows can never overlap.
+        return QSize(24, 2 * self.fontMetrics().lineSpacing() + 2)
+
+    def _display_lines(self, metrics, width: int) -> list[str]:
+        text = self._full
+        if not text or metrics.horizontalAdvance(text) <= width:
+            return [text]
+        words = text.split(" ")
+        first = ""
+        rest_from = 0
+        for index, word in enumerate(words):
+            trial = word if not first else f"{first} {word}"
+            if metrics.horizontalAdvance(trial) <= width:
+                first = trial
+                rest_from = index + 1
+            else:
+                break
+        if not first:
+            # Even the first word is wider than the column. Collapsing to one
+            # line here threw away half the space and left titles cut to a
+            # handful of letters ("Elektr…"), so break the word itself and keep
+            # using both lines. Binary search: a linear scan would call
+            # horizontalAdvance once per character on every repaint.
+            low, high = 1, len(text)
+            while low < high:
+                middle = (low + high + 1) // 2
+                if metrics.horizontalAdvance(text[:middle]) <= width:
+                    low = middle
+                else:
+                    high = middle - 1
+            head, tail = text[:low], text[low:]
+            if not tail:
+                return [head]
+            return [head, metrics.elidedText(tail, Qt.TextElideMode.ElideRight, width)]
+        if rest_from >= len(words):
+            return [first]
+        second = metrics.elidedText(
+            " ".join(words[rest_from:]), Qt.TextElideMode.ElideRight, width
+        )
+        return [first, second]
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        from PySide6.QtGui import QPainter
+
+        painter = QPainter(self)
+        painter.setPen(self.palette().color(self.foregroundRole()))
+        metrics = painter.fontMetrics()
+        rect = self.contentsRect()
+        lines = self._display_lines(metrics, max(rect.width(), 8))
+        painter.drawText(
+            rect,
+            int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
+            "\n".join(lines),
+        )
         painter.end()
 
 

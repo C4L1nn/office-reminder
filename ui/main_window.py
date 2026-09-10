@@ -61,6 +61,10 @@ class MainWindow(QMainWindow):
     sync_requested = Signal()
     quit_requested = Signal()
     unread_changed = Signal(int)
+    #: A record somewhere in the app changed. Anything living outside the
+    #: window — the tray badge, the always-on-top mini counter — listens here
+    #: rather than re-reading on a timer and lagging behind the user.
+    data_changed = Signal()
 
     def __init__(
         self,
@@ -136,6 +140,7 @@ class MainWindow(QMainWindow):
         self.dashboard_page.navigate.connect(self.show_page)
         self.companies_page.data_changed.connect(self.refresh_all)
         self.vehicles_page.data_changed.connect(self.refresh_all)
+        self.reminders_page.data_changed.connect(self.refresh_all)
         self.official_page.sync_requested.connect(self.sync_requested.emit)
         self.settings_page.open_official.connect(lambda: self.show_page("official"))
         self.settings_page.settings_changed.connect(self._settings_changed)
@@ -308,6 +313,7 @@ class MainWindow(QMainWindow):
     def refresh_all(self) -> None:
         self._refresh(self.stack.currentWidget())
         self.update_official_status()
+        self.data_changed.emit()
 
     def update_official_status(self) -> None:
         try:
@@ -317,8 +323,9 @@ class MainWindow(QMainWindow):
         self.sidebar.set_status(text, tone)
 
     def _new_reminder(self) -> None:
+        # No refresh_all here: the page announces its own change, and calling
+        # both would re-read the whole shell twice for one new record.
         self.reminders_page.create_reminder()
-        self.refresh_all()
 
     def reminder_from_clipboard(self) -> None:
         """Make a reminder out of whatever is on the clipboard.
@@ -355,13 +362,11 @@ class MainWindow(QMainWindow):
 
         self.show_page("reminders")
         self.reminders_page.create_reminder(prefill=prefill)
-        self.refresh_all()
 
     def _reminder_from_note(self, prefill: dict) -> None:
         """A note asked to become a reminder; the reminders screen owns that."""
         self.show_page("reminders")
         self.reminders_page.create_reminder(prefill=prefill)
-        self.refresh_all()
 
     def _settings_changed(self) -> None:
         self._minimize_to_tray = self.settings_service.load().minimize_to_tray

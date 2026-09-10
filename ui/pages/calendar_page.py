@@ -10,18 +10,48 @@ from __future__ import annotations
 import logging
 from datetime import date
 
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QComboBox,
+    QFrame,
+    QHBoxLayout,
+    QScrollArea,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
 from services.company_service import CompanyService
-from services.formatting import long_date, table_date, title_with_plate
+from services.formatting import long_date, title_with_plate
 from services.holiday_service import HolidayService
 from services.reminder_service import ReminderService
 from ui.calendar_grid import MonthGrid, month_title, shift_month
 from ui.shell import FilterBar, Page
 from ui.theme import tokens
-from ui.widgets import Badge, Card, data_row, fixed_cell, icon_button, label
+from ui.widgets import Badge, Card, TwoLineElided, fixed_cell, icon_button, label
 
 logger = logging.getLogger(__name__)
+
+
+def _day_row(children: list[tuple[QWidget, int]]) -> QWidget:
+    """A day-detail row: like data_row, but grows to a two-line title.
+
+    data_row is fixed at one line for dense cards; the day column is too
+    narrow for that. The height is the tallest child (the two-line title),
+    identical for every row, so rows can never paint over each other.
+    """
+    holder = QWidget()
+    holder.setObjectName("DayRow")
+    layout = QHBoxLayout(holder)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(tokens().space_sm)
+    for widget, stretch in children:
+        layout.addWidget(widget, stretch)
+    tallest = max(
+        [tokens().row_height - 6] + [w.sizeHint().height() for w, _ in children]
+    )
+    holder.setMinimumHeight(tallest)
+    return holder
 
 
 class CalendarPage(Page):
@@ -90,12 +120,34 @@ class CalendarPage(Page):
 
         self.day_card = Card("Gün")
         self.day_body = QVBoxLayout()
+        self.day_body.setContentsMargins(0, 0, 0, 0)
         self.day_body.setSpacing(t.space_xs)
-        self.day_card.add_layout(self.day_body)
-        self.day_card.body().addStretch()
+        inner = QWidget()
+        # The scroll area stretches its widget to the viewport height, which
+        # would share the spare space out among the rows and blow a six-row day
+        # up to 100px per row. The trailing stretch absorbs it instead, and it
+        # lives out here so `day_body` stays one item per record.
+        inner_layout = QVBoxLayout(inner)
+        inner_layout.setContentsMargins(0, 0, 0, 0)
+        inner_layout.setSpacing(0)
+        inner_layout.addLayout(self.day_body)
+        inner_layout.addStretch(1)
+        # Busy days hold more rows than fit beside the grid; only this list
+        # scrolls, so the grid never changes size and the page never jumps.
+        self._day_scroll = QScrollArea()
+        self._day_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._day_scroll.setWidgetResizable(True)
+        self._day_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._day_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._day_scroll.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        self._day_scroll.setWidget(inner)
+        self.day_card.add(self._day_scroll)
         side = QWidget()
-        side.setMinimumWidth(268)
-        side.setMaximumWidth(300)
+        # Wide enough for a two-line obligation name beside its badge: at the
+        # old 280px the title column came out 88px, which cut "Elektronik
+        # Defter …" down to six letters.
+        side.setMinimumWidth(320)
+        side.setMaximumWidth(372)
         side_layout = QVBoxLayout(side)
         side_layout.setContentsMargins(0, 0, 0, 0)
         side_layout.addWidget(self.day_card)
@@ -209,16 +261,15 @@ class CalendarPage(Page):
             from ui.pages.dashboard_page import status_tone
 
             text, tone = status_tone(days)
-            title = label(title_with_plate(item.title, item.plate), "Muted", wrap=True)
+            # Up to two lines, then "…": one line truncates names like "Gelir
+            # ve Kurumlar Vergisi" beyond recognition, while a free wrap would
+            # paint over the neighbours. The full title stays in the tooltip.
+            title = TwoLineElided(title_with_plate(item.title, item.plate))
+            title.setObjectName("Muted")
             title.setToolTip(f"{item.title}\n{item.company_name or 'Genel'}")
-            date_label = label(table_date(item.due_date), "Mono")
-            date_label.setFixedWidth(64)
+            # No per-row date: every record in this panel falls on the day in
+            # the card's own title, so the column repeated one date down the
+            # list while squeezing the titles it sat next to.
             self.day_body.addWidget(
-                data_row(
-                    [
-                        (date_label, 0),
-                        (title, 1),
-                        (fixed_cell(Badge(text, tone), 96), 0),
-                    ]
-                )
+                _day_row([(title, 1), (fixed_cell(Badge(text, tone), 88), 0)])
             )

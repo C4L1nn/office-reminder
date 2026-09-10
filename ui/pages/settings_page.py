@@ -93,6 +93,11 @@ class SettingsPage(Page):
             "Pencere kapatılınca arka planda çalışmaya devam et",
             "Uygulama sistem tepsisinde kalır. Tamamen kapatmak için tepsi menüsünden Çıkış'ı kullanın.",
         )
+        self.mini_counter_check = self._toggle_row(
+            card,
+            "Mini sayaç her zaman üstte dursun",
+            "En acil işi küçük bir kartta gösterir. Tıklayınca ana pencere açılır.",
+        )
         self.autostart_check = self._toggle_row(
             card,
             "Windows açıldığında başlat",
@@ -143,6 +148,7 @@ class SettingsPage(Page):
 
         self.notifications_check.toggled.connect(self._save_general)
         self.tray_check.toggled.connect(self._save_general)
+        self.mini_counter_check.toggled.connect(self._save_general)
         self.autostart_check.toggled.connect(self._save_startup)
         self.autostart_background_check.toggled.connect(self._save_startup)
         self.interval_spin.valueChanged.connect(self._save_general)
@@ -245,9 +251,12 @@ class SettingsPage(Page):
     def refresh(self) -> None:
         self._loading = True
         try:
+            from services.settings_service import MINI_COUNTER_ENABLED
+
             values = self.settings.load()
             self.notifications_check.setChecked(values.notifications_enabled)
             self.tray_check.setChecked(values.minimize_to_tray)
+            self.mini_counter_check.setChecked(self.settings.get_bool(MINI_COUNTER_ENABLED))
             self.interval_spin.setValue(values.check_interval_minutes)
             self.retention_spin.setValue(values.backup_retention_days)
             self.autostart_background_check.setChecked(values.start_in_background)
@@ -286,8 +295,11 @@ class SettingsPage(Page):
         if self._loading:
             return
         try:
+            from services.settings_service import MINI_COUNTER_ENABLED
+
             self.settings.set_notifications_enabled(self.notifications_check.isChecked())
             self.settings.set_minimize_to_tray(self.tray_check.isChecked())
+            self.settings.set_bool(MINI_COUNTER_ENABLED, self.mini_counter_check.isChecked())
             self.settings.set(
                 "notifications.check_interval_minutes", str(self.interval_spin.value())
             )

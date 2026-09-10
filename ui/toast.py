@@ -75,6 +75,11 @@ class InAppToast(QFrame):
         self._fade = QPropertyAnimation(self._effect, b"opacity", self)
         self._fade.setDuration(FADE_MS)
         self._fade.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        # Connected once: reconnecting on every dismiss is what used to emit
+        # "Failed to disconnect (None)" when nothing was connected yet.
+        # _closing tells the shared slot which fade just ended.
+        self._closing = False
+        self._fade.finished.connect(self._finish)
 
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
@@ -82,6 +87,7 @@ class InAppToast(QFrame):
 
     def present(self) -> None:
         self.show()
+        self._closing = False
         self._fade.stop()
         self._fade.setStartValue(self._effect.opacity())
         self._fade.setEndValue(1.0)
@@ -90,17 +96,16 @@ class InAppToast(QFrame):
 
     def dismiss(self) -> None:
         self._timer.stop()
+        self._closing = True
         self._fade.stop()
         self._fade.setStartValue(self._effect.opacity())
         self._fade.setEndValue(0.0)
-        try:
-            self._fade.finished.disconnect()
-        except (RuntimeError, TypeError):
-            pass
-        self._fade.finished.connect(self._finish)
         self._fade.start()
 
     def _finish(self) -> None:
+        # The slot also fires when the fade-IN ends; only a fade-out closes.
+        if not self._closing:
+            return
         self.hide()
         self.setParent(None)
         self.deleteLater()
