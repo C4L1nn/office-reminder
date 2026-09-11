@@ -36,6 +36,11 @@ motoruyla üretilir.
 | `python main.py --selftest` | Depolama ve paketlenmiş kaynakları doğrular, çıkar (0 = sağlam) |
 | `python main.py --version` | Sürümü yazar |
 
+"Windows açıldığında başlat" yalnızca paketlenmiş uygulamadan (`OfficeReminder.exe`)
+ayarlanabilir. Kaynaktan çalışırken bu kutu kapalıdır: kaynak kod geliştirme
+veritabanını (`office_reminder/data/`) kullanır ve konsol penceresiyle açılır,
+Windows başlangıcına girerse ofisin gerçek verisi yerine onu açar.
+
 ## Güncelleme
 
 Uygulama günde bir kez, ayrı bir public depodaki `latest.json` dosyasına bakar

@@ -1,9 +1,22 @@
+"""Windows autostart: the HKCU Run entry that starts the program at sign-in.
+
+Current-user only, no administrator rights, idempotent.
+
+Only a packaged build may write the entry. On 2026-09-11 an office machine
+booted into the source tree: a run of `python main.py` under a stray Python
+3.13 had ticked "Windows açıldığında başlat", the entry pointed at that
+interpreter, and every sign-in opened a console window over the development
+database instead of the office's real data. A source checkout is never what
+should start with Windows, so from source the entry is simply not written.
+"""
+
 from __future__ import annotations
 
 import os
+import re
 import sys
 from pathlib import Path
-from typing import Protocol
+from typing import Callable, Protocol
 
 
 class AutostartStore(Protocol):
@@ -79,33 +92,46 @@ class MemoryAutostartStore:
         self._data.pop(name, None)
 
 
-def _get_executable_command(background: bool = False) -> str:
-    """Return the command to launch OfficeReminder.
+class StartupUnavailable(Exception):
+    """This build cannot register itself to start with Windows."""
 
-    For packaged exe: "C:\...\OfficeReminder.exe" [--background]
-    For dev: "C:\...\python.exe" "C:\...\main.py" [--background]
+
+def _get_executable_command(background: bool = False) -> str | None:
+    """The command that starts *this* program, or None when there is none.
+
+    Packaged: `"C:/.../OfficeReminder.exe" --background`. From source there is
+    deliberately no answer: whichever interpreter happens to be running is not
+    a program anyone installed, and its data folder is the development one.
     """
-    bg = " --background" if background else ""
-    if getattr(sys, "frozen", False):
-        exe = Path(sys.executable).resolve()
-        # Quote if spaces
-        return f'"{exe}"{bg}'
-    # Development: use python + main.py
-    py = Path(sys.executable).resolve()
-    # Find main.py via bundle dir
-    try:
-        from app.paths import get_bundle_dir
+    if not getattr(sys, "frozen", False):
+        return None
+    exe = Path(sys.executable).resolve()
+    return f'"{exe}"' + (" --background" if background else "")
 
-        main_py = get_bundle_dir() / "main.py"
-    except Exception:
-        main_py = Path(__file__).resolve().parents[1] / "main.py"
-    return f'"{py}" "{main_py}"{bg}'
+
+_QUOTED = re.compile(r'^\s*"([^"]+)"')
+
+
+def _program_of(command: str | None) -> str | None:
+    """The executable a Run entry launches, normalised for comparison."""
+    if not command:
+        return None
+    match = _QUOTED.match(command)
+    program = match.group(1) if match else command.strip().split(" ")[0]
+    if not program:
+        return None
+    # Windows paths compare case-insensitively and with either slash.
+    return os.path.normcase(os.path.normpath(program))
 
 
 class StartupService:
     """Windows autostart (HKCU Run) — current-user, no admin, idempotent."""
 
-    def __init__(self, store: AutostartStore | None = None) -> None:
+    def __init__(
+        self,
+        store: AutostartStore | None = None,
+        command: Callable[[bool], str | None] | None = None,
+    ) -> None:
         if store is not None:
             self.store = store
         else:
@@ -117,44 +143,52 @@ class StartupService:
             else:
                 self.store = MemoryAutostartStore()
         self.app_name = RegistryAutostartStore.APP_NAME
+        # Injectable so tests can stand in for a packaged build; the default
+        # refuses from source.
+        self._command = command or _get_executable_command
+
+    def available(self) -> bool:
+        """Whether this build may register itself at all."""
+        return self._command(True) is not None
+
+    def get_command(self) -> str | None:
+        return self.store.get(self.app_name)
 
     def is_enabled(self) -> bool:
-        val = self.store.get(self.app_name)
-        if not val:
-            return False
-        # Consider enabled if value contains OfficeReminder (or python+main)
-        # Also check if stale (path no longer exists) — then treat as disabled
-        # We check if the executable part exists
-        try:
-            # Extract quoted exe path
-            import shlex
+        """True only when the entry starts *this* program.
 
-            # Simple: if frozen path, check exe exists; if dev, check main.py exists
-            # For now, just check that value is non-empty and contains OfficeReminder or main.py
-            if "OfficeReminder" in val or "main.py" in val:
-                return True
-            return False
-        except Exception:
-            return bool(val)
+        The previous check accepted any value containing "OfficeReminder" or
+        "main.py", so a packaged build showed autostart as on while the entry
+        actually launched a source checkout.
+        """
+        own = _program_of(self._command(True))
+        return own is not None and _program_of(self.get_command()) == own
+
+    def points_elsewhere(self) -> str | None:
+        """The stored command when an entry exists but starts something else."""
+        current = self.get_command()
+        if not current or self.is_enabled():
+            return None
+        return current
 
     def enable(self, background: bool = True) -> None:
-        cmd = _get_executable_command(background=background)
-        self.store.set(self.app_name, cmd)
+        command = self._command(background)
+        if command is None:
+            raise StartupUnavailable(
+                "Kaynak koddan çalışırken Windows başlangıcına eklenmez; "
+                "bu ayarı paketlenmiş uygulamadan (OfficeReminder.exe) yapın."
+            )
+        if self.get_command() != command:
+            self.store.set(self.app_name, command)
 
     def disable(self) -> None:
+        # Removes the entry whatever it points at: the name is ours, and a user
+        # who unticks the box expects nothing to start.
         self.store.delete(self.app_name)
 
     def set_enabled(self, enabled: bool, background: bool = True) -> None:
         if enabled:
-            # Idempotent: if already enabled with same command, no change needed
-            current = self.store.get(self.app_name)
-            desired = _get_executable_command(background=background)
-            if current == desired:
-                return
-            # Also fix stale path: if enabled but path is stale, update
+            # Also repairs an entry that points at another copy of the program.
             self.enable(background=background)
         else:
             self.disable()
-
-    def get_command(self) -> str | None:
-        return self.store.get(self.app_name)

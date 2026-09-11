@@ -103,7 +103,13 @@ def test_autostart_idempotent() -> None:
     from services.startup_service import MemoryAutostartStore, StartupService
 
     store = MemoryAutostartStore()
-    svc = StartupService(store=store)
+    # Stands in for a packaged build: from source the default command refuses
+    # to register anything (see tests/test_startup_service.py).
+    svc = StartupService(
+        store=store,
+        command=lambda background: '"C:/Program/OfficeReminder.exe"'
+        + (" --background" if background else ""),
+    )
     assert svc.is_enabled() is False
     svc.enable(background=True)
     assert svc.is_enabled() is True

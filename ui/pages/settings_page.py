@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 from app.paths import get_backups_dir, get_database_path, get_logs_dir, get_runtime_root
 from services.backup_service import BackupService
 from services.settings_service import SettingsService
-from services.startup_service import StartupService
+from services.startup_service import StartupService, StartupUnavailable
 from ui.shell import Page
 from ui.theme import tokens
 from ui.widgets import Card, button, label, separator
@@ -113,6 +113,11 @@ class SettingsPage(Page):
             "Açılışta pencereyi gösterme (yalnızca tepside başlat)",
             "Windows ile başlat seçili olduğunda geçerlidir.",
         )
+        # Says why the box is greyed out or unticked; hidden otherwise.
+        self.autostart_note = label("", "SubtleHint", wrap=True)
+        self._autostart_note_row = _indented(self.autostart_note)
+        self._autostart_note_row.setHidden(True)
+        card.add(self._autostart_note_row)
 
         card.add(separator())
         theme_row = QHBoxLayout()
@@ -268,11 +273,15 @@ class SettingsPage(Page):
             self.retention_spin.setValue(values.backup_retention_days)
             self.autostart_background_check.setChecked(values.start_in_background)
             try:
+                available = self.startup.available()
                 enabled = self.startup.is_enabled()
+                elsewhere = self.startup.points_elsewhere()
             except Exception:
-                enabled = values.start_with_windows
+                available, enabled, elsewhere = True, values.start_with_windows, None
             self.autostart_check.setChecked(enabled)
-            self.autostart_background_check.setEnabled(enabled)
+            self.autostart_check.setEnabled(available)
+            self.autostart_background_check.setEnabled(available and enabled)
+            self._show_autostart_note(available, elsewhere)
             index = self.theme_combo.findData(self.settings.get_theme())
             self.theme_combo.setCurrentIndex(max(index, 0))
         finally:
@@ -282,6 +291,22 @@ class SettingsPage(Page):
         from app.version import APP_VERSION
 
         self.version_label.setText(f"Office Reminder {APP_VERSION}")
+
+    def _show_autostart_note(self, available: bool, elsewhere: str | None) -> None:
+        if not available:
+            text = (
+                "Kaynak koddan çalışırken Windows başlangıcına eklenmez. "
+                "Bu ayarı paketlenmiş uygulamadan (OfficeReminder.exe) yapın."
+            )
+        elif elsewhere:
+            text = (
+                f"Başlangıç kaydı başka bir programı gösteriyor: {elsewhere} · "
+                "İşaretlerseniz bu uygulamayı gösterecek şekilde düzeltilir."
+            )
+        else:
+            text = ""
+        self.autostart_note.setText(text)
+        self._autostart_note_row.setHidden(not text)
 
     def _refresh_backup_status(self) -> None:
         try:
@@ -349,6 +374,10 @@ class SettingsPage(Page):
             self.startup.set_enabled(enabled, background=background)
             self.settings.set_start_with_windows(enabled)
             self.settings.set_start_in_background(background)
+        except StartupUnavailable as exc:
+            QMessageBox.information(self, "Windows ile başlat", str(exc))
+            self.refresh()
+            return
         except Exception as exc:
             QMessageBox.warning(
                 self,
@@ -357,6 +386,7 @@ class SettingsPage(Page):
             )
             self.refresh()
             return
+        self._show_autostart_note(self.startup.available(), self.startup.points_elsewhere())
         self.settings_changed.emit()
 
     def _backup_now(self) -> None:

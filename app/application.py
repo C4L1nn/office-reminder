@@ -34,6 +34,7 @@ from services.sgk_calendar_service import SgkCalendarService
 from services.startup_service import StartupService
 from services.sync_worker import run_in_background
 from ui import icons
+from app.sync_retry import failed_sources, retry_delay_ms
 from app.update_controller import UpdateController
 from ui.main_window import MainWindow
 from ui.mini_counter import MiniCounter, tooltip_for
@@ -456,6 +457,12 @@ class OfficeReminderApplication:
         def done(result: dict) -> None:
             self._sync_running = False
             logger.info("Official sync finished: %s", result)
+            # Failures come back inside the result, not as an exception.
+            failing = failed_sources(result)
+            if failing:
+                self._schedule_sync_retry(", ".join(failing))
+            else:
+                self._clear_sync_retry()
             # Announcing runs on the Qt thread so the toast has a live tray icon.
             try:
                 shown = self.official_service.announce_revisions()
@@ -472,8 +479,34 @@ class OfficeReminderApplication:
             # log line and a status row, never a modal.
             logger.warning("Official sync failed: %s", message)
             self.main_window.sync_finished()
+            self._schedule_sync_retry(message)
 
         run_in_background(work, on_finished=done, on_error=failed)
+
+    def _schedule_sync_retry(self, reason: str) -> None:
+        """Try again soon; one timer, so repeated failures never stack retries."""
+        attempt = getattr(self, "_sync_retry_attempt", 0)
+        delay = retry_delay_ms(attempt)
+        self._sync_retry_attempt = attempt + 1
+        timer = getattr(self, "_sync_retry_timer", None)
+        if timer is None:
+            timer = QTimer(self.qt_app)
+            timer.setSingleShot(True)
+            timer.timeout.connect(self.run_sync)
+            self._sync_retry_timer = timer
+        timer.start(delay)
+        logger.info(
+            "Official sync will retry in %s min (attempt %s): %s",
+            delay // 60_000,
+            attempt + 1,
+            reason,
+        )
+
+    def _clear_sync_retry(self) -> None:
+        self._sync_retry_attempt = 0
+        timer = getattr(self, "_sync_retry_timer", None)
+        if timer is not None:
+            timer.stop()
 
     # ------------------------------------------------------------------ lifecycle
     def show_window(self) -> None:

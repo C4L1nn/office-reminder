@@ -11,7 +11,7 @@ Son çalıştırma: **2026-09-03** · Ortam: Windows 11, Python 3.11.9, PySide6 
 
 | # | Kontrol | Nasıl | Sonuç |
 |---|---|---|---|
-| 1.1 | Tüm testler geçiyor | `pytest -q` | ✅ **435 passed** |
+| 1.1 | Tüm testler geçiyor | `pytest -q` | ✅ **452 passed** |
 | 1.2 | Testler ağa çıkmıyor | SGK/GİB testleri snapshot + enjekte edilmiş fetcher kullanır | ✅ |
 | 1.3 | Derleme hatası yok | `python -m compileall app database services ui tools main.py` | ✅ |
 | 1.4 | UI'da SQL yok | `grep -riE "execute\(|sqlite3|SELECT " ui/` | ✅ eşleşme yok |
@@ -113,6 +113,9 @@ Son çalıştırma: **2026-09-03** · Ortam: Windows 11, Python 3.11.9, PySide6 
 | 7.9 | Mini sayaç | Varsayılan kapalı; Ayarlar ve tepsi menüsü aynı ayarı yazar | ✅ `tests/test_mini_counter.py` |
 | 7.10 | Mini sayaç tazeleme | Kayıt değişince `data_changed` ile anında; zamanlayıcı beklenmez | ✅ `tests/test_mini_counter.py` |
 | 7.11 | Mini sayaç konumu | `QSettings` (pencere kroması); ekran dışıysa sağ alta döner | ✅ |
+| 7.12 | Başlangıç kaydını yalnızca paketli exe yazar | Kaynaktan çalışınca kutu kapalı ve sebebi yazılı; 2026-09-11'de kaynak kod Python 3.13 ile açılışa girip geliştirme veritabanını açmıştı | ✅ `tests/test_startup_service.py` |
+| 7.13 | Başka programı gösteren kayıt "açık" sayılmaz | Ayarlar kaydın gösterdiği komutu yazar, işaretleyince bu exe'ye düzeltir | ✅ `tests/test_settings_autostart.py` |
+| 7.14 | Ağsız açılışta senkron yeniden denenir | 2 → 5 → 15 → 30 dk, başarıya kadar; başarısız deneme "yakın zamanda senkronlandı" sayılmaz | ✅ `tests/test_sync_retry.py` |
 
 ## 7b. Güncelleme
 
