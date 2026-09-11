@@ -22,6 +22,9 @@ from services.reminder_service import ReminderService
 from tests.conftest import MIGRATIONS_DIR
 
 TODAY = date(2026, 9, 3)
+#: The revision fixture moves a due date from 31 Mart to 7 Nisan; announcing it
+#: only makes sense while 7 Nisan is still ahead.
+REVISION_DAY = date(2026, 4, 1)
 
 
 def obligation_ids(companies: CompanyService, *codes: str) -> list[int]:
@@ -414,7 +417,7 @@ def test_official_revision_is_actually_announced(seeded_db):
     notifier = NotificationService(seeded_db, ReminderService(seeded_db), adapter=adapter)
     service = OfficialUpdateService(seeded_db, notifier=notifier)
 
-    assert service.announce_revisions(today=TODAY) == 1
+    assert service.announce_revisions(today=REVISION_DAY) == 1
     payload = adapter.shown[0]
     assert payload.title == "Resmî tarih değişti"
     assert "BİLDİRİM LTD." in payload.body
@@ -422,7 +425,7 @@ def test_official_revision_is_actually_announced(seeded_db):
     assert "SGK" in payload.body
 
     # Announced once per company, then never again.
-    assert service.announce_revisions(today=TODAY) == 0
+    assert service.announce_revisions(today=REVISION_DAY) == 0
 
 
 def test_revision_toast_is_not_recorded_when_it_cannot_be_shown(seeded_db):
@@ -457,7 +460,7 @@ def test_revision_toast_is_not_recorded_when_it_cannot_be_shown(seeded_db):
     service = OfficialUpdateService(seeded_db, notifier=notifier)
 
     # The date change still reaches the user through the inbox.
-    assert service.announce_revisions(today=TODAY) == 1
+    assert service.announce_revisions(today=REVISION_DAY) == 1
     assert broken.shown == []
     assert notifier.unread_count() == 1
     assert revision_rows(IN_APP) == 1
@@ -465,7 +468,7 @@ def test_revision_toast_is_not_recorded_when_it_cannot_be_shown(seeded_db):
 
     # Once the channel works the toast is retried, without a second inbox entry.
     notifier.adapter = RecordingNotificationAdapter()
-    assert service.announce_revisions(today=TODAY) == 0
+    assert service.announce_revisions(today=REVISION_DAY) == 0
     assert revision_rows(WINDOWS) == 1
     assert len(notifier.inbox.list_recent()) == 1
 

@@ -11,7 +11,7 @@ Son çalıştırma: **2026-09-03** · Ortam: Windows 11, Python 3.11.9, PySide6 
 
 | # | Kontrol | Nasıl | Sonuç |
 |---|---|---|---|
-| 1.1 | Tüm testler geçiyor | `pytest -q` | ✅ **452 passed** |
+| 1.1 | Tüm testler geçiyor | `pytest -q` | ✅ **457 passed** |
 | 1.2 | Testler ağa çıkmıyor | SGK/GİB testleri snapshot + enjekte edilmiş fetcher kullanır | ✅ |
 | 1.3 | Derleme hatası yok | `python -m compileall app database services ui tools main.py` | ✅ |
 | 1.4 | UI'da SQL yok | `grep -riE "execute\(|sqlite3|SELECT " ui/` | ✅ eşleşme yok |
@@ -97,6 +97,8 @@ Son çalıştırma: **2026-09-03** · Ortam: Windows 11, Python 3.11.9, PySide6 
 | 6.9 | Uygulama içi bildirim kutusu | Okundu / tümünü okundu, okunmamış sayacı | ✅ |
 | 6.10 | Kenar çubuğu ve tepsi rozeti | Okunmamış sayısı ikon üzerinde | ✅ |
 | 6.11 | Pencere açıkken uygulama içi şerit | Odak çalmaz, kendi kendine kapanır | ✅ |
+| 6.12 | Vadesi geçmiş resmî değişiklik duyurulmaz | Yeni kurulumun ilk senkronu eski revizyonları "yeni" diye göstermez; revizyon kaydı ve Resmî Güncellemeler ekranı değişmez | ✅ `tests/test_notification_channels.py` |
+| 6.13 | Bildirimler okunmamışlarla açılır | "Eski bildirimler" okunmuşları gösterir; boş kutu okunmuşların nerede olduğunu söyler | ✅ `tests/test_notification_channels.py` |
 
 ## 7. Windows deneyimi
 
@@ -209,6 +211,7 @@ Son çalıştırma: **2026-09-03** · Ortam: Windows 11, Python 3.11.9, PySide6 
 | 9.61 | Kenar çubuğu | Uygulama işareti + seçili girişte accent çubuk; seçim değişince etiket kaymıyor | ✅ test |
 | 9.62 | Tablo ayırıcıları | İki uçtan girintili, görünür hairline; grup başlığı satırında çizgi yok | ✅ test |
 | 9.63 | Satır vurgusu | Fare satırın tamamını vurguluyor; tek hücre kutusu kalktı | ✅ |
+| 9.64 | Takvim gün paneli başlıkları | Başlığın tamamı sarılarak gösteriliyor, satır metne göre uzuyor; üç nokta yok, satırlar çakışmıyor (30 Eylül'ün 44/113/156 karakterlik GİB başlıklarıyla ölçüldü) | ✅ `tests/test_calendar_page.py` |
 
 ## 10. Performans bütçeleri
 

@@ -28,17 +28,19 @@ from services.reminder_service import ReminderService
 from ui.calendar_grid import MonthGrid, month_title, shift_month
 from ui.shell import FilterBar, Page
 from ui.theme import tokens
-from ui.widgets import Badge, Card, TwoLineElided, fixed_cell, icon_button, label
+from ui.widgets import Badge, Card, fixed_cell, icon_button, label
 
 logger = logging.getLogger(__name__)
 
 
 def _day_row(children: list[tuple[QWidget, int]]) -> QWidget:
-    """A day-detail row: like data_row, but grows to a two-line title.
+    """A day-detail row whose height follows its wrapped title.
 
-    data_row is fixed at one line for dense cards; the day column is too
-    narrow for that. The height is the tallest child (the two-line title),
-    identical for every row, so rows can never paint over each other.
+    No fixed or minimum height: the layout asks the title for its
+    height-for-width, so a 156-character GİB name gets every line it needs.
+    Children sit at the top, so the badge lines up with the first line of a
+    long title. The list scrolls inside its card, so a long day never pushes
+    the grid around.
     """
     holder = QWidget()
     holder.setObjectName("DayRow")
@@ -46,11 +48,7 @@ def _day_row(children: list[tuple[QWidget, int]]) -> QWidget:
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(tokens().space_sm)
     for widget, stretch in children:
-        layout.addWidget(widget, stretch)
-    tallest = max(
-        [tokens().row_height - 6] + [w.sizeHint().height() for w, _ in children]
-    )
-    holder.setMinimumHeight(tallest)
+        layout.addWidget(widget, stretch, Qt.AlignmentFlag.AlignTop)
     return holder
 
 
@@ -241,6 +239,10 @@ class CalendarPage(Page):
             entry = self.day_body.takeAt(0)
             widget = entry.widget()
             if widget is not None:
+                # As in DayCell._clear: deleteLater alone leaves the old row a
+                # child of the panel until the event loop reaches it, so it
+                # still paints and is still found by findChildren.
+                widget.setParent(None)
                 widget.deleteLater()
 
         self.day_card.title_label.setText(long_date(day))
@@ -261,11 +263,10 @@ class CalendarPage(Page):
             from ui.pages.dashboard_page import status_tone
 
             text, tone = status_tone(days)
-            # Up to two lines, then "…": one line truncates names like "Gelir
-            # ve Kurumlar Vergisi" beyond recognition, while a free wrap would
-            # paint over the neighbours. The full title stays in the tooltip.
-            title = TwoLineElided(title_with_plate(item.title, item.plate))
-            title.setObjectName("Muted")
+            # The whole name, wrapped: GİB titles run to 156 characters, and two
+            # lines with an ellipsis left them unreadable. The row grows to fit
+            # (see _day_row); the tooltip adds the company.
+            title = label(title_with_plate(item.title, item.plate), "Muted", wrap=True)
             title.setToolTip(f"{item.title}\n{item.company_name or 'Genel'}")
             # No per-row date: every record in this panel falls on the day in
             # the card's own title, so the column repeated one date down the

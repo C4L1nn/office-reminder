@@ -20,6 +20,16 @@ KIND_LABELS = {
 SEVERITY_TONE = {"INFO": "neutral", "WARNING": "warning", "DANGER": "danger"}
 SEVERITY_ICON = {"INFO": "bell", "WARNING": "clock", "DANGER": "alert"}
 
+EMPTY_TITLE = "Bildirim yok"
+EMPTY_BODY = (
+    "Bir hatırlatmanın tarihi yaklaştığında ya da resmî bir tarih değiştiğinde "
+    "bildirim burada birikir."
+)
+#: When the unread view is empty but read notifications exist. A plain
+#: "Bildirim yok" there reads as if the history had been lost.
+NO_UNREAD_TITLE = "Okunmamış bildirim yok"
+NO_UNREAD_BODY = "Daha önce okuduklarınızı görmek için Eski bildirimler'e basın."
+
 
 def when(stamp: str | None) -> str:
     if not stamp:
@@ -44,8 +54,10 @@ def when(stamp: str | None) -> str:
 class NotificationsPage(Page):
     """The inbox that Do Not Disturb cannot silence.
 
-    Every announcement lands here and stays unread until the user opens this
-    screen, so a suppressed Windows toast no longer means a missed deadline.
+    Every announcement lands here and stays unread until the user marks it.
+    The screen opens on what is still unread; notifications already read are
+    one click away under "Eski bildirimler", so the list shows what needs
+    attention instead of everything that was ever sent.
     """
 
     unread_changed = Signal(int)
@@ -54,17 +66,18 @@ class NotificationsPage(Page):
     def __init__(self, notification_service: NotificationService, parent: QWidget | None = None) -> None:
         super().__init__(
             "Bildirimler",
-            "Gönderilen tüm hatırlatmalar. Windows bildirimi görünmese de buraya düşer.",
+            "Okunmamış bildirimler. Windows bildirimi görünmese de buraya düşer.",
             parent,
         )
         self.service = notification_service
-        self._show_unread_only = False
+        self._show_unread_only = True
         self._build()
 
     # ------------------------------------------------------------------ layout
     def _build(self) -> None:
-        self.filter_button = button("Yalnızca okunmayanlar", "subtle", "filter")
+        self.filter_button = button("Eski bildirimler", "subtle", "clock")
         self.filter_button.setCheckable(True)
+        self.filter_button.setToolTip("Okunmuş bildirimleri de göster")
         self.filter_button.toggled.connect(self._on_filter)
         self.mark_all_button = button("Tümünü okundu işaretle", "subtle", "check")
         self.mark_all_button.clicked.connect(self._mark_all)
@@ -82,12 +95,7 @@ class NotificationsPage(Page):
         self.card.add(self.list_area)
         self.add(self.card, 1)
 
-        self.empty = EmptyState(
-            "Bildirim yok",
-            "Bir hatırlatmanın tarihi yaklaştığında ya da resmî bir tarih değiştiğinde "
-            "bildirim burada birikir.",
-            "bell",
-        )
+        self.empty = EmptyState(EMPTY_TITLE, EMPTY_BODY, "bell")
         self.list_layout.addWidget(self.empty)
         self.list_layout.addStretch()
 
@@ -107,6 +115,11 @@ class NotificationsPage(Page):
         except Exception:
             notifications, unread = [], 0
 
+        if not notifications:
+            if self._show_unread_only and self._has_any():
+                self.empty.set_text(NO_UNREAD_TITLE, NO_UNREAD_BODY)
+            else:
+                self.empty.set_text(EMPTY_TITLE, EMPTY_BODY)
         self.empty.setVisible(not notifications)
         for position, notification in enumerate(notifications):
             if position:
@@ -115,6 +128,12 @@ class NotificationsPage(Page):
 
         self.mark_all_button.setEnabled(unread > 0)
         self.unread_changed.emit(unread)
+
+    def _has_any(self) -> bool:
+        try:
+            return bool(self.service.inbox.list_recent(limit=1))
+        except Exception:
+            return False
 
     def _row(self, notification: AppNotification) -> QWidget:
         t = tokens()
@@ -170,7 +189,8 @@ class NotificationsPage(Page):
 
     # ------------------------------------------------------------------ actions
     def _on_filter(self, checked: bool) -> None:
-        self._show_unread_only = checked
+        # Checked means "also show the old ones".
+        self._show_unread_only = not checked
         self.refresh()
 
     def _mark_read(self, notification_id: int) -> None:

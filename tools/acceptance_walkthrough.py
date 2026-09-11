@@ -315,7 +315,9 @@ step(23, "Resmî revision senaryoları",
 # 24 -------------------------------------------------------------- notification smoke
 notifier = NotificationService(db2, reminders2, adapter=RecordingNotificationAdapter())
 service = OfficialUpdateService(db2, notifier=notifier)
-shown = service.announce_revisions()
+# The fixture revision moves 31 Mart to 7 Nisan. Revisions whose new date has
+# already passed are not announced, so ask as of a day before it.
+shown = service.announce_revisions(today=date(2026, 4, 1))
 texts = [payload.body for payload in notifier.adapter.shown]
 step(24, "Bildirim smoke", shown >= 1 and any("→" in text for text in texts),
      texts[0].replace("\n", " | ") if texts else "gösterilecek revision yok",

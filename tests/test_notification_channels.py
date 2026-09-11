@@ -19,6 +19,9 @@ from services.notification_service import IN_APP, WINDOWS, NotificationService
 from services.reminder_service import ReminderService
 
 TODAY = date(2026, 9, 3)
+#: The revision fixture moves a due date from 31 Mart to 7 Nisan. Announcing
+#: it only makes sense while 7 Nisan is still ahead.
+REVISION_DAY = date(2026, 4, 1)
 
 
 def deliveries(database, channel: str | None = None) -> int:
@@ -165,7 +168,8 @@ def test_mark_all_read(migrated_db):
 
 
 # ------------------------------------------------------------------ revisions
-def test_official_revision_also_lands_in_the_inbox(seeded_db):
+def _revised_calendar(seeded_db, adapter):
+    """A company subject to SGK 4/a whose February due date moved 31 Mart → 7 Nisan."""
     from services.holiday_service import HolidayService
     from services.official_update_service import OfficialUpdateService
     from services.sgk_calendar_service import SgkCalendarService
@@ -179,19 +183,38 @@ def test_official_revision_also_lands_in_the_inbox(seeded_db):
     SgkCalendarService(seeded_db, HolidayService(seeded_db)).apply_official_override(
         "SGK_4A_2026_02_1END", date(2026, 4, 7), "SGK duyurusu", "https://www.sgk.gov.tr")
 
-    silenced = RecordingNotificationAdapter(succeed=False)
-    notifier = NotificationService(seeded_db, ReminderService(seeded_db), adapter=silenced)
-    service = OfficialUpdateService(seeded_db, notifier=notifier)
+    notifier = NotificationService(seeded_db, ReminderService(seeded_db), adapter=adapter)
+    return OfficialUpdateService(seeded_db, notifier=notifier), notifier
 
-    assert service.announce_revisions(today=TODAY) == 1, "toast sussa da kullanıcıya ulaşır"
+
+def test_official_revision_also_lands_in_the_inbox(seeded_db):
+    silenced = RecordingNotificationAdapter(succeed=False)
+    service, notifier = _revised_calendar(seeded_db, silenced)
+
+    assert service.announce_revisions(today=REVISION_DAY) == 1, "toast sussa da kullanıcıya ulaşır"
     entry = notifier.inbox.list_recent()[0]
     assert entry.kind == "OFFICIAL_REVISION"
     assert entry.title == "Resmî tarih değişti"
     assert "31 Mart" in entry.body and "7 Nisan" in entry.body
     assert notifier.unread_count() == 1
 
-    assert service.announce_revisions(today=TODAY) == 0, "aynı revision iki kez kutuya düşmez"
+    assert service.announce_revisions(today=REVISION_DAY) == 0, "aynı revision iki kez kutuya düşmez"
     assert len(notifier.inbox.list_recent()) == 1
+
+
+def test_revision_for_a_date_already_past_is_not_announced(seeded_db):
+    """A new install's first sync must not announce last spring's changes.
+
+    On 2026-09-05 the office received "31 Mart → 7 Nisan" and "1 Haziran →
+    5 Haziran" as fresh news: the revisions were *detected* that day, but the
+    dates had passed months earlier and there was nothing left to act on.
+    """
+    adapter = RecordingNotificationAdapter()
+    service, notifier = _revised_calendar(seeded_db, adapter)
+
+    assert service.announce_revisions(today=TODAY) == 0
+    assert adapter.shown == []
+    assert notifier.inbox.list_recent() == []
 
 
 # ------------------------------------------------------------------ settings
@@ -228,6 +251,76 @@ def test_notifications_page_lists_and_marks(migrated_db, qt_app):
     assert service.unread_count() == 0
     assert counts[-1] == 0
     assert not page.mark_all_button.isEnabled()
+
+
+def _inbox_with_one_read_one_unread(database) -> NotificationService:
+    reminders = ReminderService(database)
+    reminders.create_manual(title="Okunan", due_date=TODAY + timedelta(days=3))
+    reminders.create_manual(title="Yeni gelen", due_date=TODAY + timedelta(days=1))
+    service = NotificationService(database, reminders, adapter=RecordingNotificationAdapter())
+    service.check_and_notify(today=TODAY)
+    read = next(n for n in service.inbox.list_recent() if n.title == "Okunan")
+    service.inbox.mark_read(read.id)
+    return service
+
+
+def _listed_titles(page) -> list[str]:
+    from PySide6.QtWidgets import QLabel
+
+    return [
+        title.text()
+        for title in page.list_host.findChildren(QLabel, "SectionTitle")
+        if not page.empty.isAncestorOf(title)
+    ]
+
+
+def test_notifications_page_opens_on_unread_only(migrated_db, qt_app):
+    from ui.pages.notifications_page import NotificationsPage
+
+    page = NotificationsPage(_inbox_with_one_read_one_unread(migrated_db))
+    page.refresh()
+
+    assert page.filter_button.text() == "Eski bildirimler"
+    assert not page.filter_button.isChecked()
+    assert _listed_titles(page) == ["Yeni gelen"], "okunmuş bildirim varsayılan görünümde"
+
+
+def test_old_notifications_button_brings_back_read_ones(migrated_db, qt_app):
+    from ui.pages.notifications_page import NotificationsPage
+
+    page = NotificationsPage(_inbox_with_one_read_one_unread(migrated_db))
+    page.refresh()
+
+    page.filter_button.setChecked(True)
+    assert sorted(_listed_titles(page)) == ["Okunan", "Yeni gelen"]
+
+    page.filter_button.setChecked(False)
+    assert _listed_titles(page) == ["Yeni gelen"]
+
+
+def test_empty_unread_view_says_where_the_rest_went(migrated_db, qt_app):
+    """"Bildirim yok" over a list of read notifications reads like lost history."""
+    from ui.pages.notifications_page import NO_UNREAD_TITLE, NotificationsPage
+
+    service = _inbox_with_one_read_one_unread(migrated_db)
+    service.inbox.mark_all_read()
+    page = NotificationsPage(service)
+    page.refresh()
+
+    assert not page.empty.isHidden()
+    assert page.empty._heading.text() == NO_UNREAD_TITLE
+    assert "Eski bildirimler" in page.empty._body.text()
+
+
+def test_empty_inbox_keeps_the_plain_message(migrated_db, qt_app):
+    from ui.pages.notifications_page import EMPTY_TITLE, NotificationsPage
+
+    service = NotificationService(migrated_db, ReminderService(migrated_db), adapter=RecordingNotificationAdapter())
+    page = NotificationsPage(service)
+    page.refresh()
+
+    assert not page.empty.isHidden()
+    assert page.empty._heading.text() == EMPTY_TITLE
 
 
 def test_sidebar_shows_the_unread_badge(qt_app):

@@ -17,6 +17,13 @@ from ui.calendar_grid import CHIPS_PER_DAY, WEEKS, month_title, shift_month
 from ui.pages.calendar_page import CalendarPage
 from ui.theme import apply_theme
 
+#: A real GİB title (30 Eylül 2026). Two lines and an ellipsis turned it into
+#: "Taşınmaz ve / Motorlu Taşıt İla…".
+LONG_OFFICIAL_TITLE = (
+    "Taşınmaz ve Motorlu Taşıt İlanlarını Platformları Üzerinden Yayımlayanlar "
+    "ile Günübirlik Konut Kiralama İşini Platformları Üzerinden Sağlayanların Bildirimi"
+)
+
 
 @pytest.fixture()
 def page(qt_app, migrated_db):
@@ -43,6 +50,23 @@ def page(qt_app, migrated_db):
     widget.refresh()
     yield widget
     widget.close()
+
+
+def _day_titles(page) -> list:
+    """Title labels of the rows currently in the day panel."""
+    from PySide6.QtWidgets import QLabel, QWidget
+
+    return [
+        title
+        for row in page.day_card.findChildren(QWidget, "DayRow")
+        for title in row.findChildren(QLabel, "Muted")
+    ]
+
+
+def _settle(qt_app) -> None:
+    # Height-for-width settles over two layout passes inside a scroll area.
+    qt_app.processEvents()
+    qt_app.processEvents()
 
 
 def test_month_shows_only_its_own_days(page) -> None:
@@ -92,65 +116,57 @@ def test_a_long_company_name_is_elided_not_chopped(page) -> None:
     assert chip.full_text(), "çip metni boş"
 
 
-def test_day_detail_uses_up_to_two_lines(page) -> None:
-    """A long title gets its second line instead of a mid-word cut.
+def test_day_detail_shows_the_full_title(page, qt_app) -> None:
+    """The panel shows the whole obligation name, wrapped, never cut.
 
-    One line truncates names like "Gelir ve Kurumlar Vergisi" beyond
-    recognition; the full text stays in the tooltip either way.
+    Two lines and an ellipsis made 113- and 156-character GİB titles
+    unreadable. The row grows instead and the list scrolls inside its card.
     """
-    from ui.widgets import TwoLineElided
-
-    long_title = "Elektronik Defter Beratları Dönem Yüklemesi ve Bildirimi"
     page.reminder_service.create_manual(
-        title=long_title, due_date=date(2026, 9, 15), category="OTHER"
+        title=LONG_OFFICIAL_TITLE, due_date=date(2026, 9, 15), category="OTHER"
     )
     page.refresh()
+    page.show()
     page._show_day(date(2026, 9, 15))
+    _settle(qt_app)
 
-    titles = page.day_card.findChildren(TwoLineElided)
-    target = next((t for t in titles if t.full_text() == long_title), None)
-    assert target is not None, "uzun başlık gün detayında yok"
-    assert long_title in target.toolTip()
-
-    metrics = target.fontMetrics()
-    narrow = target._display_lines(metrics, 100)
-    assert len(narrow) == 2, narrow
-    assert narrow[1].endswith("…"), narrow
-    wide = target._display_lines(metrics, 2000)
-    assert wide == [long_title]
+    target = next((t for t in _day_titles(page) if t.text() == LONG_OFFICIAL_TITLE), None)
+    assert target is not None, "uzun başlık gün detayında tam hâliyle yok"
+    assert target.wordWrap(), "başlık sarılmıyor, kesilir"
+    assert target.height() >= target.heightForWidth(target.width()), "başlık satırına sığmıyor"
+    assert LONG_OFFICIAL_TITLE in target.toolTip()
 
 
 def test_crowded_day_rows_never_overlap(page, qt_app) -> None:
-    """Six records on one day: every row keeps its own band.
+    """Many long records on one day: every row keeps its own band.
 
-    Rows share one height and the list scrolls inside its card, so a busy
-    day cannot paint rows over each other or push the grid around.
+    Rows grow with their wrapped titles, so their heights differ. What must
+    hold is that no row paints over another and no title is cut by its row.
     """
     from PySide6.QtWidgets import QWidget
 
     for index in range(6):
         page.reminder_service.create_manual(
-            title=f"Uzun Başlıklı Kayıt Numara {index} Ek Metin",
+            title=f"Uzun Başlıklı Kayıt Numara {index} " + "Ek Metin " * index,
             due_date=date(2026, 9, 15),
             category="OTHER",
         )
     page.refresh()
     page.show()
-    qt_app.processEvents()
+    _settle(qt_app)
     page._show_day(date(2026, 9, 15))
-    qt_app.processEvents()
+    _settle(qt_app)
 
     rows = page.day_card.findChildren(QWidget, "DayRow")
-    assert len(rows) >= 6, f"beklenen 6 satır, bulunan {len(rows)}"
-    heights = {row.height() for row in rows}
-    assert len(heights) == 1, f"satır boyları dağıldı: {heights}"
+    # Exactly the day's records: rows from an earlier day must not linger as
+    # hidden children of the panel.
+    assert len(rows) == 11, f"beklenen 11 satır (5 + 6), bulunan {len(rows)}"
+    for title in _day_titles(page):
+        assert title.height() >= title.heightForWidth(title.width()), title.text()
     boxes = [row.geometry() for row in rows]
     for first in range(len(boxes)):
         for second in range(first + 1, len(boxes)):
             assert not boxes[first].intersects(boxes[second]), (first, second)
-
-
-
 
 
 def test_repainting_does_not_pile_up_labels(page) -> None:
@@ -206,13 +222,14 @@ def test_public_holidays_are_marked(page) -> None:
 
 
 def test_day_detail_titles_use_the_muted_tone(page, qt_app) -> None:
-    """Two-line titles still follow the theme, in both palettes."""
+    """Wrapped titles still follow the theme, in both palettes."""
     from ui.theme import DARK, LIGHT, apply_theme
-    from ui.widgets import TwoLineElided
 
     for palette_tokens in (DARK, LIGHT):
         apply_theme(qt_app, palette_tokens)
         page._show_day(date(2026, 9, 15))
-        titles = page.day_card.findChildren(TwoLineElided)
-        assert titles
-        assert all(t.objectName() == "Muted" for t in titles)
+        titles = _day_titles(page)
+        assert len(titles) == 5
+        for title in titles:
+            title.ensurePolished()
+            assert title.palette().color(title.foregroundRole()).name() == palette_tokens.text_muted

@@ -140,8 +140,12 @@ class OfficialUpdateService:
                 JOIN official_calendar_events oce ON oce.id = r.official_event_id
                 JOIN obligation_types ot ON ot.id = oce.obligation_type_id
                 WHERE substr(r.detected_at, 1, 10) >= ?
+                  AND r.new_due_date >= ?
             """
-            params: list = [floor]
+            # A revision is news only while its new date is still ahead. A new
+            # install's first sync detects every change of the year at once;
+            # without this it announced "31 Mart → 7 Nisan" in September.
+            params: list = [floor, today.isoformat()]
             if source_kind:
                 query += " AND oce.source_kind = ?"
                 params.append(source_kind)

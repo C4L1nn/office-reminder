@@ -268,24 +268,29 @@ class EmptyState(QWidget):
         glyph.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(glyph)
 
-        heading = label(title, "SectionTitle")
-        heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(heading)
+        self._heading = label(title, "SectionTitle")
+        self._heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._heading)
 
-        text = label(body, "Muted", wrap=True)
-        text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._body = label(body, "Muted", wrap=True)
+        self._body.setAlignment(Qt.AlignmentFlag.AlignCenter)
         # A centred layout hands a child its size hint, and a wrapping label's
         # hint collapses to about 175px — narrow enough to cut the sentence off.
         # The minimum pins a readable measure; the maximum stops a long line.
-        text.setMinimumWidth(340)
-        text.setMaximumWidth(420)
-        layout.addWidget(text, alignment=Qt.AlignmentFlag.AlignCenter)
+        self._body.setMinimumWidth(340)
+        self._body.setMaximumWidth(420)
+        layout.addWidget(self._body, alignment=Qt.AlignmentFlag.AlignCenter)
 
         if action:
             layout.addSpacing(t.space_sm)
             self.action = button(action, "primary", "plus")
             self.action.clicked.connect(self.action_clicked.emit)
             layout.addWidget(self.action, alignment=Qt.AlignmentFlag.AlignCenter)
+
+    def set_text(self, title: str, body: str) -> None:
+        """Reword the empty state, e.g. when a filter is what emptied the list."""
+        self._heading.setText(title)
+        self._body.setText(body)
 
 
 class TableStack(QWidget):
@@ -510,88 +515,6 @@ class ElidedLabel(QLabel):
         rect = self.contentsRect()
         elided = metrics.elidedText(self._full, Qt.TextElideMode.ElideRight, rect.width())
         painter.drawText(rect, int(self.alignment()), elided)
-        painter.end()
-
-
-class TwoLineElided(QLabel):
-    """A title that may use two lines, then ends in an ellipsis.
-
-    The day column is too narrow for long obligation names on one line, but a
-    free wrap has no cap — so this fills the first line greedily at word
-    boundaries and elides everything else at the end of the second line. The
-    full text stays with the caller (tooltip). Paints with the palette colour
-    like ElidedLabel, so `Muted` keeps working in both themes.
-    """
-
-    def __init__(self, text: str = "", parent: QWidget | None = None) -> None:
-        super().__init__(text, parent)
-        self._full = " ".join(text.split())
-        self.setMinimumWidth(24)
-
-    def setText(self, text: str) -> None:  # noqa: N802
-        self._full = " ".join(text.split())
-        super().setText(text)
-        self.update()
-
-    def full_text(self) -> str:
-        return self._full
-
-    def sizeHint(self) -> QSize:  # noqa: N802
-        # Always room for two lines: every row stays the same height whether
-        # its title needs one line or two, so rows can never overlap.
-        return QSize(24, 2 * self.fontMetrics().lineSpacing() + 2)
-
-    def _display_lines(self, metrics, width: int) -> list[str]:
-        text = self._full
-        if not text or metrics.horizontalAdvance(text) <= width:
-            return [text]
-        words = text.split(" ")
-        first = ""
-        rest_from = 0
-        for index, word in enumerate(words):
-            trial = word if not first else f"{first} {word}"
-            if metrics.horizontalAdvance(trial) <= width:
-                first = trial
-                rest_from = index + 1
-            else:
-                break
-        if not first:
-            # Even the first word is wider than the column. Collapsing to one
-            # line here threw away half the space and left titles cut to a
-            # handful of letters ("Elektr…"), so break the word itself and keep
-            # using both lines. Binary search: a linear scan would call
-            # horizontalAdvance once per character on every repaint.
-            low, high = 1, len(text)
-            while low < high:
-                middle = (low + high + 1) // 2
-                if metrics.horizontalAdvance(text[:middle]) <= width:
-                    low = middle
-                else:
-                    high = middle - 1
-            head, tail = text[:low], text[low:]
-            if not tail:
-                return [head]
-            return [head, metrics.elidedText(tail, Qt.TextElideMode.ElideRight, width)]
-        if rest_from >= len(words):
-            return [first]
-        second = metrics.elidedText(
-            " ".join(words[rest_from:]), Qt.TextElideMode.ElideRight, width
-        )
-        return [first, second]
-
-    def paintEvent(self, event) -> None:  # noqa: N802
-        from PySide6.QtGui import QPainter
-
-        painter = QPainter(self)
-        painter.setPen(self.palette().color(self.foregroundRole()))
-        metrics = painter.fontMetrics()
-        rect = self.contentsRect()
-        lines = self._display_lines(metrics, max(rect.width(), 8))
-        painter.drawText(
-            rect,
-            int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
-            "\n".join(lines),
-        )
         painter.end()
 
 
