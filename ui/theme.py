@@ -507,6 +507,27 @@ QMainWindow, QDialog, #Canvas {{
 }}
 
 /* ------------------------------------------------------------------ badges */
+/* The update strip sits above the page, not over it: an accent left edge and
+   a tinted ground mark it as the shell speaking rather than the page. */
+#UpdateBanner {{
+    background: {surface_alt};
+    border: none;
+    border-left: 3px solid {accent};
+    border-bottom: 1px solid {border};
+}}
+#UpdateBanner QProgressBar {{
+    border: 1px solid {border};
+    border-radius: {radius_sm}px;
+    background: {surface};
+    height: 16px;
+    font-size: {text_caption}pt;
+    color: {text_muted};
+}}
+#UpdateBanner QProgressBar::chunk {{
+    background: {accent};
+    border-radius: {radius_sm}px;
+}}
+
 /* Filled rather than outlined: a row of bordered pills fights the text it is
    meant to annotate. The tint carries the meaning, the border added noise. */
 #Badge {{

@@ -11,13 +11,13 @@ Son çalıştırma: **2026-09-03** · Ortam: Windows 11, Python 3.11.9, PySide6 
 
 | # | Kontrol | Nasıl | Sonuç |
 |---|---|---|---|
-| 1.1 | Tüm testler geçiyor | `pytest -q` | ✅ **356 passed** |
+| 1.1 | Tüm testler geçiyor | `pytest -q` | ✅ **435 passed** |
 | 1.2 | Testler ağa çıkmıyor | SGK/GİB testleri snapshot + enjekte edilmiş fetcher kullanır | ✅ |
 | 1.3 | Derleme hatası yok | `python -m compileall app database services ui tools main.py` | ✅ |
 | 1.4 | UI'da SQL yok | `grep -riE "execute\(|sqlite3|SELECT " ui/` | ✅ eşleşme yok |
 | 1.5 | Sessiz `except: pass` yok | Kalanlar dar istisna veya gerekçeli yorum içeriyor | ✅ |
 | 1.6 | TODO / FIXME / stub yok | Kaynak taraması | ✅ |
-| 1.7 | Sürüm senkron | `app/version.py` == `pyproject.toml` | ✅ 1.0.0 |
+| 1.7 | Sürüm senkron | `app/version.py` == `pyproject.toml` | ✅ 1.1.0 |
 
 ## 2. Veritabanı
 
@@ -113,6 +113,21 @@ Son çalıştırma: **2026-09-03** · Ortam: Windows 11, Python 3.11.9, PySide6 
 | 7.9 | Mini sayaç | Varsayılan kapalı; Ayarlar ve tepsi menüsü aynı ayarı yazar | ✅ `tests/test_mini_counter.py` |
 | 7.10 | Mini sayaç tazeleme | Kayıt değişince `data_changed` ile anında; zamanlayıcı beklenmez | ✅ `tests/test_mini_counter.py` |
 | 7.11 | Mini sayaç konumu | `QSettings` (pencere kroması); ekran dışıysa sağ alta döner | ✅ |
+
+## 7b. Güncelleme
+
+| # | Kontrol | Nasıl | Sonuç |
+|---|---|---|---|
+| 7b.1 | Manifest doğrulanıyor | HTTPS dışı, tanınmayan sunucu, bozuk özet, absürt boyut, ileri schema reddedilir | ✅ `tests/test_update_service.py` |
+| 7b.2 | Özet tutmazsa kurulmuyor | Aynı boyutta farklı içerik indirildi | ✅ `.part` silinir, hiçbir şey açılmaz |
+| 7b.3 | Selftest kapısı | Hazırlanan yapı kendi kum havuzunda `--selftest` | ✅ gerçek veritabanına dokunmaz |
+| 7b.4 | Kurulum öncesi yedek | `create_backup(force=True)` | ✅ migration'lar tek yönlü |
+| 7b.5 | Eski sürüm korunuyor | `.old` klasörü yeni sürüm açılana kadar durur | ✅ `tests/test_update_swap.py` |
+| 7b.6 | Her hata yolunda çalışan program kalıyor | Hazırlık yok, exe yok, süreç kapanmadı senaryoları | ✅ `tests/test_update_installer.py` |
+| 7b.7 | Sonuç kullanıcıya bildiriliyor | `last_result.json` -> açılışta toast, bir kez | ✅ `tests/test_update_controller.py` |
+| 7b.8 | "Sonra" bir sürüme ait | Atlanan sürüm çıkmaz, sonraki çıkar | ✅ |
+| 7b.9 | Uçtan uca prova | 1.0.0 kurulu -> 1.1.0 fark paketi -> gerçek takas | ✅ 3,3 MB, kurulu sürüm 1.1.0, `.old` 1.0.0, selftest EXIT=0 |
+| 7b.10 | Fark paketi boyutu | `tools/make_release.py` | ✅ tam 43,0 MB / fark **3,3 MB** |
 
 ## 8. Yedekleme
 

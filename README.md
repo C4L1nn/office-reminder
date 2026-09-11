@@ -36,6 +36,55 @@ motoruyla üretilir.
 | `python main.py --selftest` | Depolama ve paketlenmiş kaynakları doğrular, çıkar (0 = sağlam) |
 | `python main.py --version` | Sürümü yazar |
 
+## Güncelleme
+
+Uygulama günde bir kez, ayrı bir public depodaki `latest.json` dosyasına bakar
+ve yeni sürüm varsa pencerenin üstünde ince bir şerit gösterir. **Kurulum her
+zaman kullanıcının onayıyla başlar**; şerit "Sonra" ile kapatılırsa o sürüm
+için bir daha çıkmaz, sonraki sürümde yeniden görünür. Otomatik denetim
+Ayarlar'dan kapatılabilir; tepsi menüsünde "Güncellemeleri denetle" her zaman
+çalışır.
+
+Sıra, her adımı geri dönülebilir bırakacak şekilde kurulu:
+
+```
+manifest → indir → sha256 doğrula → klasörü hazırla
+→ yeni yapıyı kendi kum havuzunda --selftest'ten geçir
+→ veritabanını yedekle → uygulamadan çık → takas → yeniden başlat
+```
+
+- **Özet tutmazsa hiçbir şey açılmaz.** HTTPS tek başına yeterli sayılmaz.
+  Paket adresi de yalnızca bilinen sunuculardan olabilir.
+- **Yeni sürüm kendini sınamadan kurulmaz.** Sınama kendi geçici veri
+  klasöründe koşar, çünkü selftest migration uygular ve kullanıcı henüz
+  güncellemeye razı olmadan gerçek şema değiştirilmemelidir.
+- **Kurulumdan önce veritabanı yedeklenir.** Migration'lar tek yönlü; geri
+  dönüş yolu `.old` klasörü değil, o yedektir.
+- **Eski klasör silinmez, `.old` olarak bekler** ve ancak yeni sürüm bir kez
+  açıldıktan sonra kaldırılır.
+- **Sonuç bir nota yazılır.** Kurulum uygulama kapalıyken koştuğu için
+  başarısız bir güncelleme aksi hâlde sessiz kalırdı; not bir sonraki açılışta
+  kullanıcıya gösterilir. Ayrıntısı güncelleme klasöründeki `update.log`
+  dosyasında.
+
+Kurulumu ayrı bir yardımcı program değil, **hazırlanan klasörün kendi exe'si**
+yapar (`--apply-update`). O klasör hedefin dışındadır ve hedef o sırada
+çalışmadığı için kilit sorunu doğmaz; böylece paketle taşınması ve ana
+programla senkron tutulması gereken ikinci bir ikili olmuyor.
+
+Tipik güncelleme **~3 MB**: paketteki 179 dosyanın yalnızca birkaçı sürümler
+arasında değişir, gerisi bit bit aynı kalır ve indirilmez.
+
+### Sürüm yayınlama
+
+```bash
+.venv/Scripts/python tools/make_release.py --dist dist/OfficeReminder --out dist/release --previous dist/OfficeReminder-1.0.0 --previous-version 1.0.0 --notes "..."
+```
+
+Tam paketi, fark paketini ve `latest.json`'ı aynı ölçümden üretir ve manifesti
+uygulamanın kendi doğrulayıcısından geçirir. Üç dosya da sürüm deposuna
+yüklenir; `latest.json` deponun kökünde durmalıdır.
+
 ## Veriler nerede?
 
 Uygulama **kendi klasörüne hiçbir şey yazmaz.**

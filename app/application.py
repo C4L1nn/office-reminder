@@ -34,6 +34,7 @@ from services.sgk_calendar_service import SgkCalendarService
 from services.startup_service import StartupService
 from services.sync_worker import run_in_background
 from ui import icons
+from app.update_controller import UpdateController
 from ui.main_window import MainWindow
 from ui.mini_counter import MiniCounter, tooltip_for
 from ui.theme import apply_theme, tokens_for
@@ -140,6 +141,15 @@ class OfficeReminderApplication:
             logger.debug("Mini sayaç ayar sinyali bağlanamadı", exc_info=True)
         self._sync_mini_counter_visibility()
 
+        self.update_controller = UpdateController(
+            self.settings_service,
+            self.main_window.update_banner,
+            self.main_window,
+            backup_factory=self._make_backup_service,
+        )
+        self.update_controller.quit_requested.connect(self.quit)
+        self.update_controller.start()
+
         self._start_timers()
         logger.info("Startup complete")
 
@@ -201,6 +211,15 @@ class OfficeReminderApplication:
         except Exception:
             logger.error("SGK calendar generation failed", exc_info=True)
 
+    def _make_backup_service(self) -> BackupService:
+        """Yedekleme ayarları arada değişebildiği için her seferinde kurulur."""
+        settings = self.settings_service.load()
+        return BackupService(
+            get_database_path(),
+            get_backups_dir(),
+            retention_days=settings.backup_retention_days,
+        )
+
     def _daily_backup(self) -> None:
         if self._first_run:
             logger.info("First run: backup deferred to next start")
@@ -209,10 +228,7 @@ class OfficeReminderApplication:
             settings = self.settings_service.load()
             if not settings.backup_enabled:
                 return
-            service = BackupService(
-                get_database_path(), get_backups_dir(), retention_days=settings.backup_retention_days
-            )
-            created = service.create_backup_if_needed()
+            created = self._make_backup_service().create_backup_if_needed()
             logger.info("Backup: %s", created or "already taken today")
         except Exception:
             logger.warning("Daily backup failed (non-blocking)", exc_info=True)
@@ -261,6 +277,10 @@ class OfficeReminderApplication:
             logger.debug("Mini sayaç ayarı okunamadı", exc_info=True)
         self._mini_counter_action.triggered.connect(self._toggle_mini_counter_from_tray)
         menu.addAction(self._mini_counter_action)
+
+        update_action = QAction("Güncellemeleri denetle", menu)
+        update_action.triggered.connect(lambda: self.update_controller.check(manual=True))
+        menu.addAction(update_action)
 
         menu.addSeparator()
 

@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QStackedWidget,
     QSystemTrayIcon,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -37,6 +38,7 @@ from services.search_service import (
     SearchService,
 )
 from ui.dialogs.search_dialog import SearchDialog
+from ui.update_banner import UpdateBanner
 from ui.pages.calendar_page import CalendarPage
 from ui.pages.notes_page import NotesPage
 from ui.pages.notifications_page import NotificationsPage
@@ -103,8 +105,17 @@ class MainWindow(QMainWindow):
         self.sidebar.navigated.connect(self.show_page)
         layout.addWidget(self.sidebar)
 
+        # Sayfaların üstünde, kenar çubuğunun sağında: güncelleme şeridi
+        # kabuğun sözü, sayfanın değil, ama sayfayı da örtmemeli.
+        right = QWidget()
+        right_layout = QVBoxLayout(right)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
+        self.update_banner = UpdateBanner()
+        right_layout.addWidget(self.update_banner)
         self.stack = QStackedWidget()
-        layout.addWidget(self.stack, 1)
+        right_layout.addWidget(self.stack, 1)
+        layout.addWidget(right, 1)
         self.setCentralWidget(central)
 
         self.dashboard_page = DashboardPage(reminder_service, company_service)

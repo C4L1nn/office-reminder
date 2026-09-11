@@ -25,6 +25,9 @@ BACKUP_ENABLED = "backup.enabled"
 BACKUP_RETENTION_DAYS = "backup.retention_days"
 APPEARANCE_THEME = "appearance.theme"
 MINI_COUNTER_ENABLED = "mini_counter.enabled"
+UPDATE_AUTO_CHECK = "updates.auto_check"
+#: Kullanıcının "Sonra" dediği sürüm; o sürüm için şerit bir daha çıkmaz.
+UPDATE_SKIPPED_VERSION = "updates.skipped_version"
 
 #: "system" follows the Windows colour mode; the other two override it.
 THEME_CHOICES = ("system", "light", "dark")
@@ -40,6 +43,8 @@ _DEFAULTS: dict[str, str] = {
     BACKUP_RETENTION_DAYS: "30",
     APPEARANCE_THEME: "system",
     MINI_COUNTER_ENABLED: "false",
+    UPDATE_AUTO_CHECK: "true",
+    UPDATE_SKIPPED_VERSION: "",
 }
 
 _TRUE = {"1", "true", "yes", "on"}
