@@ -1,10 +1,31 @@
-# Runtime data — never committed; the app writes these under %LOCALAPPDATA%
+# Runtime data - never committed; the app writes these under %LOCALAPPDATA%
 # in a packaged build and under ./data when run from source.
 /data/
 *.db
 *.db-wal
 *.db-shm
+*.sqlite
+*.sqlite3
 *.lock
+
+# Backups, exports and logs
+/backups/
+/exports/
+/logs/
+*.bak
+*.backup
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*
+secrets*
+auth.json
 
 # Build output
 /build/
@@ -22,3 +43,9 @@ venv/
 .ruff_cache/
 .mypy_cache/
 *.egg-info/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

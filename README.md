@@ -1,159 +1,132 @@
 # Office Reminder
 
-Windows ofis kullanımı için yerel, internetsiz de çalışan PySide6 + SQLite
-yükümlülük ve hatırlatma uygulaması.
+Office Reminder is a Windows desktop application for managing recurring business obligations,
+official due dates and local reminders. It is built with **Python, PySide6 and SQLite** and is
+designed to remain useful even when the computer is offline.
 
-Şirketlerin **KDV / SGK / diğer resmî yükümlülük** tarihleri GİB ve SGK resmî
-kaynaklarından gelir — personel bu tarihleri elle girmez. Araç muayenesi,
-sigorta, kasko, kira, sözleşme gibi şirkete özgü tarihler kullanıcı tarafından
-eklenir. Uygulama sistem tepsisinde yaşar, Windows bildirimi gönderir ve
-verisini günlük yedekler.
+The application ships with a normalized 2026 GIB tax calendar and can process SGK notices while
+preserving source provenance. Company-specific reminders such as vehicle inspection, insurance,
+rent and contract dates can be added manually.
 
-İsteğe bağlı **mini sayaç**, en acil işi diğer pencerelerin üstünde duran
-küçük bir kartta gösterir: tıklayınca ana pencere açılır, sürükleyerek
-taşınır. Varsayılan olarak kapalıdır; Ayarlar ekranından veya tepsi
-menüsünden açılır.
+> This project is not legal, tax or accounting advice. Official dates can change. Users should
+> verify critical deadlines against the relevant official authority.
 
-## Hızlı başlangıç
+## Highlights
 
-```bash
+- Local-first Windows desktop application
+- PySide6 + SQLite, no hosted backend required
+- GIB and SGK official-source processing with provenance
+- Fail-closed handling of ambiguous official data
+- Company-specific reminders and recurring schedules
+- In-app and Windows notifications
+- System tray support and optional always-on-top mini counter
+- Automatic local backups
+- Self-test mode for packaged builds
+- Signed-by-hash style update verification with rollback-friendly install flow
+- Offline test suite using archived public-source fixtures
+
+## Quick start
+
+Requirements:
+
+- Windows
+- Python 3.11+
+
+```powershell
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 python main.py
 ```
 
-İlk açılışta veritabanı oluşturulur, migration'lar uygulanır, paketle gelen
-GİB 2026 takvimi (476 gerçek kayıt) yüklenir ve SGK 4/a vadeleri kural
-motoruyla üretilir.
+On first launch, migrations are applied automatically and the bundled official calendar seed is
+loaded.
 
-### Çalıştırma seçenekleri
+### Command-line options
 
-| Komut | Ne yapar |
+| Command | Purpose |
 |---|---|
-| `python main.py` | Normal başlatır |
-| `python main.py --background` | Pencereyi açmadan tepside başlatır (Windows açılışı için) |
-| `python main.py --selftest` | Depolama ve paketlenmiş kaynakları doğrular, çıkar (0 = sağlam) |
-| `python main.py --version` | Sürümü yazar |
+| `python main.py` | Start normally |
+| `python main.py --background` | Start directly in the system tray |
+| `python main.py --selftest` | Validate storage and packaged resources, then exit |
+| `python main.py --version` | Print the application version |
 
-"Windows açıldığında başlat" yalnızca paketlenmiş uygulamadan (`OfficeReminder.exe`)
-ayarlanabilir. Kaynaktan çalışırken bu kutu kapalıdır: kaynak kod geliştirme
-veritabanını (`office_reminder/data/`) kullanır ve konsol penceresiyle açılır,
-Windows başlangıcına girerse ofisin gerçek verisi yerine onu açar.
+## Data location
 
-## Güncelleme
+The packaged application stores mutable runtime data under:
 
-Uygulama günde bir kez, ayrı bir public depodaki `latest.json` dosyasına bakar
-ve yeni sürüm varsa pencerenin üstünde ince bir şerit gösterir. **Kurulum her
-zaman kullanıcının onayıyla başlar**; şerit "Sonra" ile kapatılırsa o sürüm
-için bir daha çıkmaz, sonraki sürümde yeniden görünür. Otomatik denetim
-Ayarlar'dan kapatılabilir; tepsi menüsünde "Güncellemeleri denetle" her zaman
-çalışır.
+`%LOCALAPPDATA%\OfficeReminder\`
 
-Sıra, her adımı geri dönülebilir bırakacak şekilde kurulu:
+When running from source, development data is stored below the repository's local `data/`
+directory.
 
-```
-manifest → indir → sha256 doğrula → klasörü hazırla
-→ yeni yapıyı kendi kum havuzunda --selftest'ten geçir
-→ veritabanını yedekle → uygulamadan çık → takas → yeniden başlat
-```
+Runtime databases, backups, logs and exports are intentionally excluded from version control.
 
-- **Özet tutmazsa hiçbir şey açılmaz.** HTTPS tek başına yeterli sayılmaz.
-  Paket adresi de yalnızca bilinen sunuculardan olabilir.
-- **Yeni sürüm kendini sınamadan kurulmaz.** Sınama kendi geçici veri
-  klasöründe koşar, çünkü selftest migration uygular ve kullanıcı henüz
-  güncellemeye razı olmadan gerçek şema değiştirilmemelidir.
-- **Kurulumdan önce veritabanı yedeklenir.** Migration'lar tek yönlü; geri
-  dönüş yolu `.old` klasörü değil, o yedektir.
-- **Eski klasör silinmez, `.old` olarak bekler** ve ancak yeni sürüm bir kez
-  açıldıktan sonra kaldırılır.
-- **Sonuç bir nota yazılır.** Kurulum uygulama kapalıyken koştuğu için
-  başarısız bir güncelleme aksi hâlde sessiz kalırdı; not bir sonraki açılışta
-  kullanıcıya gösterilir. Ayrıntısı güncelleme klasöründeki `update.log`
-  dosyasında.
+## Testing
 
-Kurulumu ayrı bir yardımcı program değil, **hazırlanan klasörün kendi exe'si**
-yapar (`--apply-update`). O klasör hedefin dışındadır ve hedef o sırada
-çalışmadığı için kilit sorunu doğmaz; böylece paketle taşınması ve ana
-programla senkron tutulması gereken ikinci bir ikili olmuyor.
-
-Tipik güncelleme **~3 MB**: paketteki 179 dosyanın yalnızca birkaçı sürümler
-arasında değişir, gerisi bit bit aynı kalır ve indirilmez.
-
-### Sürüm yayınlama
-
-```bash
-.venv/Scripts/python tools/make_release.py --dist dist/OfficeReminder --out dist/release --previous dist/OfficeReminder-1.0.0 --previous-version 1.0.0 --notes "..."
-```
-
-Tam paketi, fark paketini ve `latest.json`'ı aynı ölçümden üretir ve manifesti
-uygulamanın kendi doğrulayıcısından geçirir. Üç dosya da sürüm deposuna
-yüklenir; `latest.json` deponun kökünde durmalıdır.
-
-## Veriler nerede?
-
-Uygulama **kendi klasörüne hiçbir şey yazmaz.**
-
-| | Paketlenmiş (.exe) | Kaynaktan çalıştırma |
-|---|---|---|
-| Kök | `%LOCALAPPDATA%\OfficeReminder\` | `<proje>\data\` |
-| Veritabanı | `…\data\office_reminder.db` | `…\data\office_reminder.db` |
-| Yedekler | `…\backups\` | `…\backups\` |
-| Günlükler | `…\logs\` | `…\logs\` |
-| Resmî kaynak snapshot'ları | `…\data\official_sources\` | `…\data\official_sources\` |
-
-`OFFICE_REMINDER_DATA_DIR` ortam değişkeni bu kökü değiştirir (testler ve
-taşınabilir kurulum için).
-
-## Test
-
-```bash
+```powershell
 pytest -q
 ```
 
-Testler ağa çıkmaz. SGK production parser'ı, `tests/fixtures/sgk/` altındaki
-**gerçek sgk.gov.tr sayfa ve PDF snapshot'larına** karşı çalıştırılır.
+The test suite is designed to run without network access. SGK parser tests use archived public
+pages and documents stored under `tests/fixtures/sgk/`.
 
-## Paketleme
+The current release checklist records **457 passing tests** for version 1.1.0.
 
-**Derleme mutlaka temiz bir sanal ortamda yapılmalıdır.** PyInstaller, ortamda
-ne bulursa import zincirlerinden içeri çeker; sistem Python'unda derlenen
-1.0.0 paketi bu yüzden `numpy` + OpenBLAS, `PIL`'in AVIF kodeki ve pywin32'nin
-MFC katmanını taşıyordu — hiçbiri bu uygulamada import edilmiyor.
+## Building
 
-```bash
+Build from a clean virtual environment:
+
+```powershell
 python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt pyinstaller
 .venv\Scripts\pyinstaller --noconfirm --clean office_reminder.spec
 ```
 
-Çıktı: `dist/OfficeReminder/OfficeReminder.exe` (onedir, windowed).
-Bundle yalnızca salt-okunur kaynakları içerir: migration'lar, GİB seed takvimi
-ve ikon. Çalışma zamanı verisi paketlenmez.
+Then validate the packaged application:
 
-Temiz ortamda ölçülen boyutlar: klasör **109 MB**, ZIP **42,9 MB**, 179 dosya,
-`OfficeReminder.exe` **3,2 MB**. Kod değişikliğinde paketin yalnızca iki
-dosyası değişir (`OfficeReminder.exe` ve `_internal/base_library.zip`,
-sıkıştırılmış toplam ~3 MB); geri kalan 177 dosya sürümler arasında bit bit
-aynı kalır.
-
-Build sonrası doğrulama:
-
-```bash
+```powershell
 dist\OfficeReminder\OfficeReminder.exe --selftest
 ```
 
-Rapor hem konsola hem `%LOCALAPPDATA%\OfficeReminder\selftest.txt` dosyasına
-yazılır.
-
-## Mimari
+## Architecture
 
 ```
-UI  →  Service  →  Repository  →  SQLite
+UI -> Service -> Repository -> SQLite
 ```
 
-UI katmanı SQL bilmez ve repository'lere doğrudan erişmez; her ekran bir
-service ile konuşur. Ayrıntılar için `PLAN.md` ve `AGENTS.md`.
+The UI layer does not issue SQL directly. Business rules live in services, and persistence is
+isolated in repositories. Published migrations are treated as immutable.
 
-Sürüm notları ve yayın öncesi kontrol listesi: `RELEASE_CHECKLIST.md`.
-Son teknik denetim: `FINAL_AUDIT.md`.
+Additional engineering context:
+
+- `AGENTS.md` - architecture and development invariants
+- `RELEASE_CHECKLIST.md` - release verification
+- `FINAL_AUDIT.md` - detailed technical audit
+- `PLAN.md` - product and implementation decisions
+
+## Official data and attribution
+
+The repository contains normalized or archived material derived from public official sources,
+including GIB and SGK, for application functionality and offline testing. Source URLs and
+acquisition metadata are preserved where practical.
+
+Third-party/public-source material remains subject to its original terms and is not relicensed
+by the MIT license covering this project's original source code.
+
+## Privacy and security
+
+Office Reminder is local-first. Before contributing, please read [SECURITY.md](SECURITY.md).
+
+Never commit real company databases, exports, backups, credentials or private documents.
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+Original project source code is licensed under the [MIT License](LICENSE).
+
+Government/public-source fixtures and datasets included for provenance or testing are subject to
+their original source terms.
